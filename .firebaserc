@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "aisteth-academy-dev",
+    "development": "aisteth-academy-dev",
+    "staging": "aisteth-academy-staging",
+    "production": "aisteth-academy-prod"
+  }
+}

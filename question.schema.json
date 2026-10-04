@@ -1,0 +1,230 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aisteth.academy/schemas/question.schema.json",
+  "title": "AiSteth Academy Question Bank Schema",
+  "description": "JSON Schema specification for AiSteth Academy questions dataset (MCQ, True/False, Image Tap, Step Order, Audio Discrimination).",
+  "type": "array",
+  "items": {
+    "$ref": "#/definitions/Question"
+  },
+  "definitions": {
+    "QuestionCategory": {
+      "type": "string",
+      "enum": [
+        "DEVICE_HANDLING",
+        "HEART_RECORDING",
+        "QUALITY_ASSESSMENT",
+        "OPERATING_PROCEDURE",
+        "ANATOMICAL_PLACEMENT"
+      ]
+    },
+    "DifficultyLevel": {
+      "type": "string",
+      "enum": ["BEGINNER", "INTERMEDIATE", "ADVANCED"]
+    },
+    "SourceType": {
+      "type": "string",
+      "enum": ["DEMO", "CLINICAL", "MEDGEMMA"]
+    },
+    "BaseQuestionFields": {
+      "type": "object",
+      "required": [
+        "question_id",
+        "category",
+        "type",
+        "difficulty",
+        "question",
+        "explanation",
+        "learning_objective",
+        "tags",
+        "clinician_validated",
+        "source",
+        "version"
+      ],
+      "properties": {
+        "question_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "category": {
+          "$ref": "#/definitions/QuestionCategory"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "MCQ",
+            "TRUE_FALSE",
+            "IMAGE_TAP",
+            "STEP_ORDER",
+            "AUDIO_DISCRIMINATION"
+          ]
+        },
+        "difficulty": {
+          "$ref": "#/definitions/DifficultyLevel"
+        },
+        "question": {
+          "type": "string",
+          "minLength": 5
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 5
+        },
+        "learning_objective": {
+          "type": "string",
+          "minLength": 5
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "clinician_validated": {
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/definitions/SourceType"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "MCQQuestion": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseQuestionFields" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "MCQ" },
+            "option_a": { "type": "string", "minLength": 1 },
+            "option_b": { "type": "string", "minLength": 1 },
+            "option_c": { "type": "string", "minLength": 1 },
+            "option_d": { "type": "string", "minLength": 1 },
+            "correct_answer": {
+              "type": "string",
+              "enum": ["option_a", "option_b", "option_c", "option_d"]
+            }
+          },
+          "required": [
+            "option_a",
+            "option_b",
+            "option_c",
+            "option_d",
+            "correct_answer"
+          ]
+        }
+      ]
+    },
+    "TrueFalseQuestion": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseQuestionFields" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "TRUE_FALSE" },
+            "correct_answer": { "type": "boolean" }
+          },
+          "required": ["correct_answer"]
+        }
+      ]
+    },
+    "ImageTapQuestion": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseQuestionFields" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "IMAGE_TAP" },
+            "image_asset": { "type": "string" },
+            "target_zone": {
+              "type": "object",
+              "required": [
+                "x_min_percent",
+                "y_min_percent",
+                "x_max_percent",
+                "y_max_percent"
+              ],
+              "properties": {
+                "x_min_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+                "y_min_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+                "x_max_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+                "y_max_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+                "label": { "type": "string" }
+              }
+            },
+            "tolerance_radius_percent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 50
+            }
+          },
+          "required": ["image_asset", "target_zone"]
+        }
+      ]
+    },
+    "StepOrderQuestion": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseQuestionFields" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "STEP_ORDER" },
+            "initial_steps": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "required": ["id", "text"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "text": { "type": "string" }
+                }
+              }
+            },
+            "correct_step_order": {
+              "type": "array",
+              "minItems": 2,
+              "items": { "type": "string" }
+            }
+          },
+          "required": ["initial_steps", "correct_step_order"]
+        }
+      ]
+    },
+    "AudioDiscriminationQuestion": {
+      "allOf": [
+        { "$ref": "#/definitions/BaseQuestionFields" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "AUDIO_DISCRIMINATION" },
+            "audio_asset_a": { "type": "string" },
+            "audio_asset_b": { "type": "string" },
+            "label_a": { "type": "string" },
+            "label_b": { "type": "string" },
+            "correct_audio": {
+              "type": "string",
+              "enum": ["audio_a", "audio_b"]
+            },
+            "clinical_finding": { "type": "string" }
+          },
+          "required": [
+            "audio_asset_a",
+            "audio_asset_b",
+            "correct_audio",
+            "clinical_finding"
+          ]
+        }
+      ]
+    },
+    "Question": {
+      "oneOf": [
+        { "$ref": "#/definitions/MCQQuestion" },
+        { "$ref": "#/definitions/TrueFalseQuestion" },
+        { "$ref": "#/definitions/ImageTapQuestion" },
+        { "$ref": "#/definitions/StepOrderQuestion" },
+        { "$ref": "#/definitions/AudioDiscriminationQuestion" }
+      ]
+    }
+  }
+}

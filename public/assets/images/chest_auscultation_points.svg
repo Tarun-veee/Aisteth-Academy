@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 450" width="100%" height="100%">
+  <!-- Background -->
+  <rect width="400" height="450" fill="#F8FAFC" rx="16"/>
+  
+  <!-- Torso Outline -->
+  <path d="M120,40 C140,40 160,50 200,50 C240,50 260,40 280,40 C310,40 340,80 340,140 C340,220 320,380 300,420 C280,440 120,440 100,420 C80,380 60,220 60,140 C60,80 90,40 120,40 Z" 
+        fill="#FFFFFF" stroke="#94A3B8" stroke-width="3" stroke-linejoin="round"/>
+        
+  <!-- Clavicles / Neck guideline -->
+  <path d="M120,55 Q160,85 200,90 Q240,85 280,55" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="4 4"/>
+  
+  <!-- Sternum guideline -->
+  <line x1="200" y1="90" x2="200" y2="280" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="4 4"/>
+  
+  <!-- Ribcage lines -->
+  <path d="M140,130 Q170,160 200,160 Q230,160 260,130" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+  <path d="M130,175 Q165,205 200,205 Q235,205 270,175" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+  <path d="M125,225 Q165,255 200,255 Q235,255 275,225" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+  <path d="M120,280 Q160,310 200,310 Q240,310 280,280" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- Landmark Guides (Light circles) -->
+  <!-- Aortic: 2nd ICS Right Sternal Border ~ (165, 145) => x: 41%, y: 32% -->
+  <circle cx="165" cy="145" r="14" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5" opacity="0.6"/>
+  <text x="165" y="149" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#1E40AF" text-anchor="middle">A</text>
+
+  <!-- Pulmonic: 2nd ICS Left Sternal Border ~ (235, 145) => x: 58%, y: 32% -->
+  <circle cx="235" cy="145" r="14" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5" opacity="0.6"/>
+  <text x="235" y="149" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#1E40AF" text-anchor="middle">P</text>
+
+  <!-- Tricuspid: 4th ICS Left Sternal Border ~ (225, 235) => x: 56%, y: 52% -->
+  <circle cx="225" cy="235" r="14" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5" opacity="0.6"/>
+  <text x="225" y="239" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#1E40AF" text-anchor="middle">T</text>
+
+  <!-- Mitral (Apex): 5th ICS Left Midclavicular Line ~ (265, 310) => x: 66%, y: 69% -->
+  <circle cx="265" cy="310" r="16" fill="#EFF6FF" stroke="#2563EB" stroke-width="2" opacity="0.8"/>
+  <text x="265" y="314" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#1D4ED8" text-anchor="middle">M</text>
+
+  <!-- Title / Legend -->
+  <text x="200" y="25" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#475569" text-anchor="middle">Anatomical Auscultation Sites</text>
+  <text x="200" y="440" font-family="system-ui, sans-serif" font-size="10" fill="#94A3B8" text-anchor="middle">A: Aortic | P: Pulmonic | T: Tricuspid | M: Mitral (Apex)</text>
+</svg>

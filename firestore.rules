@@ -1,0 +1,250 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS & ROLE CHECKS (v2.7.0-SPARK-SPEC)
+    // =========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isPlatformAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'PLATFORM_ADMIN' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         getUserData().role == 'PLATFORM_ADMIN')
+      );
+    }
+
+    function isContentAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role in ['CONTENT_ADMIN', 'PLATFORM_ADMIN'] ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         getUserData().role in ['CONTENT_ADMIN', 'PLATFORM_ADMIN'])
+      );
+    }
+
+    function isSupervisorOf(orgId) {
+      return isAuthenticated() && (
+        request.auth.token.role == 'PLATFORM_ADMIN' ||
+        (request.auth.token.role == 'SUPERVISOR' && request.auth.token.organizationId == orgId) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          getUserData().role == 'PLATFORM_ADMIN' ||
+          (getUserData().role == 'SUPERVISOR' && getUserData().organizationId == orgId)
+        ))
+      );
+    }
+
+    function isOrgMember(orgId) {
+      return isAuthenticated() && (
+        request.auth.token.organizationId == orgId ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         getUserData().organizationId == orgId)
+      );
+    }
+
+    // Trainee profile creation validation: strict allow-list and initial baseline learning state
+    function isNewUserDocValid(uid) {
+      let data = request.resource.data;
+      return data.uid == uid &&
+             data.role == 'TRAINEE' &&
+             data.organizationId == 'org_rbsk_national' &&
+             data.createdAt == request.time &&
+             data.keys().hasOnly([
+               'uid', 'username', 'role', 'organizationId', 'displayName',
+               'designation', 'healthSubCentre', 'district', 'state',
+               'optionalEmail', 'trainingTimeZone', 'createdAt', 'updatedAt', 'learningState'
+             ]) &&
+             data.learningState.totalXp == 0 &&
+             data.learningState.currentStreak == 0 &&
+             data.learningState.currentLevel == 1 &&
+             data.learningState.completedSessionsCount == 0 &&
+             data.learningState.completedQuestionsCount == 0 &&
+             data.learningState.totalCorrectAnswersCount == 0 &&
+             data.learningState.longestStreak == 0 &&
+             data.learningState.streakShieldActive == false &&
+             data.learningState.streakShieldConsumed == false;
+    }
+
+    // Trainee profile update validation: strict allow-list of top-level editable fields and learningState constraints
+    // Server-controlled fields (uid, username, role, organizationId, createdAt) are strictly immutable.
+    // If updatedAt is included in the update, it MUST be a serverTimestamp() (request.time).
+    function isTraineeProfileUpdateValid() {
+      let diff = request.resource.data.diff(resource.data);
+      let affectedKeys = diff.affectedKeys();
+      let allowedTopLevelKeys = [
+        'displayName',
+        'designation',
+        'healthSubCentre',
+        'district',
+        'state',
+        'optionalEmail',
+        'trainingTimeZone',
+        'updatedAt',
+        'learningState',
+        'lastActiveAt'
+      ].toSet();
+
+      let isTopLevelAllowed = affectedKeys.hasOnly(allowedTopLevelKeys);
+      let areImmutableFieldsPreserved = !affectedKeys.hasAny(['uid', 'username', 'role', 'organizationId', 'createdAt'].toSet());
+      let isUpdatedAtValid = !affectedKeys.hasAny(['updatedAt'].toSet()) || request.resource.data.updatedAt == request.time;
+
+      let isLearningStateValid = !affectedKeys.hasAny(['learningState'].toSet()) || (
+        request.resource.data.learningState.keys().hasOnly([
+          'totalXp', 'currentStreak', 'currentLevel', 'completedSessionsCount',
+          'completedQuestionsCount', 'totalCorrectAnswersCount', 'longestStreak',
+          'lastActiveDate', 'streakShieldActive', 'streakShieldConsumed'
+        ]) &&
+        request.resource.data.learningState.totalXp >= resource.data.learningState.totalXp &&
+        request.resource.data.learningState.totalXp <= resource.data.learningState.totalXp + 200 &&
+        request.resource.data.learningState.currentStreak >= 0 &&
+        request.resource.data.learningState.currentStreak <= resource.data.learningState.currentStreak + 1 &&
+        request.resource.data.learningState.completedSessionsCount >= resource.data.learningState.completedSessionsCount &&
+        request.resource.data.learningState.completedSessionsCount <= resource.data.learningState.completedSessionsCount + 1 &&
+        request.resource.data.learningState.currentLevel >= 1 &&
+        request.resource.data.learningState.currentLevel <= 5
+      );
+
+      return isTopLevelAllowed && areImmutableFieldsPreserved && isUpdatedAtValid && isLearningStateValid;
+    }
+
+    // =========================================================================
+    // 3.1 APP CONFIG (Global parameters - Client readable only; No secrets)
+    // =========================================================================
+    match /appConfig/global {
+      allow read: if isAuthenticated();
+      allow write: if isPlatformAdmin();
+    }
+
+    // =========================================================================
+    // 3.2 USERNAMES (Reservation registry - Spark Client Creation & Compensation)
+    // =========================================================================
+    match /usernames/{username} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                       request.resource.data.uid == request.auth.uid &&
+                       request.resource.data.status == 'ACTIVE' &&
+                       request.resource.data.createdAt == request.time &&
+                       !exists(/databases/$(database)/documents/usernames/$(username));
+      allow update: if false;
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+
+    // =========================================================================
+    // 3.3 ORGANIZATIONS (Tenant boundaries)
+    // =========================================================================
+    match /organizations/{organizationId} {
+      allow read: if isAuthenticated() && (
+        isOrgMember(organizationId) ||
+        isContentAdmin() ||
+        isPlatformAdmin()
+      );
+      allow write: if isPlatformAdmin();
+    }
+
+    // =========================================================================
+    // 3.4 USERS & SUBCOLLECTIONS (Trainee profiles, sessions, attempts)
+    // =========================================================================
+    match /users/{uid} {
+      // Trainee reads self; Supervisor reads org cohort; Platform Admin reads all
+      allow read: if isOwner(uid) ||
+                     (resource.data.organizationId != null && isSupervisorOf(resource.data.organizationId)) ||
+                     isPlatformAdmin();
+
+      // Initial user profile creation is allowed by the authenticated trainee with role TRAINEE and baseline learningState
+      allow create: if isOwner(uid) && isNewUserDocValid(uid);
+
+      // Trainee can ONLY update explicitly allowed profile fields and bounded learningState; sensitive fields are strictly immutable
+      allow update: if (isOwner(uid) && isTraineeProfileUpdateValid()) || isPlatformAdmin();
+
+      // Delete allowed for owner (for compensating cleanup) or platform admin
+      allow delete: if isOwner(uid) || isPlatformAdmin();
+
+      // 3.5 Daily Sessions (Client authoritative with rule constraints)
+      match /dailySessions/{sessionId} {
+        allow read: if isOwner(uid) ||
+                       (exists(/databases/$(database)/documents/users/$(uid)) &&
+                        isSupervisorOf(get(/databases/$(database)/documents/users/$(uid)).data.organizationId)) ||
+                       isPlatformAdmin();
+
+        // Create allowed for owner with exactly 10 questions and valid status
+        allow create: if isOwner(uid) &&
+                         (request.resource.data.userId == uid || request.resource.data.uid == uid) &&
+                         request.resource.data.questionIds.size() == 10 &&
+                         request.resource.data.createdAt == request.time &&
+                         request.resource.data.status in ['IN_PROGRESS', 'COMPLETED', 'REVIEW_COMPLETED', 'QUESTIONS_COMPLETED', 'REVIEW_VIEWED'];
+
+        // Update allowed only while session is active (locking on completed sessions)
+        allow update: if isOwner(uid) &&
+                         resource.data.status != 'COMPLETED' &&
+                         resource.data.status != 'REVIEW_COMPLETED' &&
+                         resource.data.status != 'REVIEW_VIEWED' &&
+                         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['questionIds', 'userId', 'uid', 'createdAt', 'sessionId'].toSet());
+
+        allow delete: if false;
+      }
+
+      // 3.6 Attempts (Strictly append-only log)
+      match /attempts/{attemptId} {
+        allow read: if isOwner(uid) ||
+                       (exists(/databases/$(database)/documents/users/$(uid)) &&
+                        isSupervisorOf(get(/databases/$(database)/documents/users/$(uid)).data.organizationId)) ||
+                       isPlatformAdmin();
+
+        // Append-only creation allowed for session attempts
+        allow create: if isOwner(uid) &&
+                         (request.resource.data.userId == uid || request.resource.data.uid == uid) &&
+                         request.resource.data.createdAt == request.time;
+
+        allow update: if false; // Append-only: Updates strictly forbidden
+        allow delete: if false; // Append-only: Deletions strictly forbidden
+      }
+    }
+
+    // =========================================================================
+    // 3.7 CONTENT RELEASES & QUESTIONS (Immutable Versioned Releases)
+    // =========================================================================
+    match /contentReleases/{releaseId} {
+      allow read: if (resource.data.status == 'PUBLISHED' && isAuthenticated()) ||
+                     isContentAdmin() ||
+                     isPlatformAdmin();
+      allow write: if isContentAdmin() || isPlatformAdmin();
+
+      match /questions/{questionId} {
+        allow read: if (get(/databases/$(database)/documents/contentReleases/$(releaseId)).data.status == 'PUBLISHED' && isAuthenticated()) ||
+                       isContentAdmin() ||
+                       isPlatformAdmin();
+        allow write: if isContentAdmin() || isPlatformAdmin();
+      }
+    }
+
+    // =========================================================================
+    // 3.8 ANALYTICS (Supervisor Aggregates)
+    // =========================================================================
+    match /analytics/organizations/{organizationId}/dailyMetrics/{metricDocId} {
+      allow read: if isSupervisorOf(organizationId) || isPlatformAdmin();
+      allow write: if isPlatformAdmin();
+    }
+
+    // =========================================================================
+    // 3.10 AUDIT LOGS (Tamper-evident Administrative Audit Trail)
+    // =========================================================================
+    match /auditLogs/{auditId} {
+      allow read: if isPlatformAdmin();
+      allow create: if isAuthenticated() &&
+                       (request.resource.data.userId == request.auth.uid || request.resource.data.uid == request.auth.uid) &&
+                       request.resource.data.timestamp == request.time;
+      allow update, delete: if false;
+    }
+  }
+}
