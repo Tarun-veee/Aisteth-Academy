@@ -61,16 +61,28 @@ export class StorageRepository {
    * Save a completed session record and recalculate user stats, streak, and Streak Shield consumption.
    */
   async saveSession(session: StoredSessionRecord): Promise<void> {
+    let alreadyExists = false;
     if (this.isIndexedDBAvailable && this.dbPromise) {
       try {
         const db = await this.dbPromise;
+        const existing = await db.get(STORES.SESSIONS, session.sessionId);
+        if (existing) {
+          alreadyExists = true;
+        }
         await db.put(STORES.SESSIONS, session);
       } catch (err) {
         console.warn('IndexedDB write failed, using localStorage fallback', err);
+        alreadyExists = this.getAllSessionsFallback().some((s) => s.sessionId === session.sessionId);
         this.saveSessionFallback(session);
       }
     } else {
+      alreadyExists = this.getAllSessionsFallback().some((s) => s.sessionId === session.sessionId);
       this.saveSessionFallback(session);
+    }
+
+    if (alreadyExists) {
+      // Idempotency guard: Session already recorded; do not duplicate stats progression
+      return;
     }
 
     // Update cumulative user stats & streak
@@ -336,7 +348,12 @@ export class StorageRepository {
   private saveSessionFallback(session: StoredSessionRecord) {
     try {
       const existing = this.getAllSessionsFallback();
-      existing.push(session);
+      const idx = existing.findIndex((s) => s.sessionId === session.sessionId);
+      if (idx >= 0) {
+        existing[idx] = session;
+      } else {
+        existing.push(session);
+      }
       this.setStorageItem('aisteth_sessions', JSON.stringify(existing));
     } catch (e) {
       console.error('Storage write error', e);

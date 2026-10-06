@@ -12,7 +12,7 @@ import { FeedbackDrawer } from '../components/feedback/FeedbackDrawer';
 import { ProgressBar } from '../components/common/ProgressBar';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
-import { X, Check, HelpCircle, Lightbulb, RotateCcw, Lock } from 'lucide-react';
+import { X, Check, Lightbulb, Lock, Sparkles } from 'lucide-react';
 
 export interface DailySessionScreenProps {
   session: SessionState;
@@ -20,9 +20,8 @@ export interface DailySessionScreenProps {
   currentQuestion: Question | null;
   onSetAnswer: (answer: UserAnswerPayload) => void;
   onSubmitAnswer: () => void;
-  onApplyHint: () => void;
+  onApplyFiftyFifty: () => void;
   onApplyLearn: () => void;
-  onApplyRetry: () => void;
   onNextQuestion: () => void;
   onExitSession: () => void;
 }
@@ -33,9 +32,8 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
   currentQuestion,
   onSetAnswer,
   onSubmitAnswer,
-  onApplyHint,
+  onApplyFiftyFifty,
   onApplyLearn,
-  onApplyRetry,
   onNextQuestion,
   onExitSession,
 }) => {
@@ -56,15 +54,12 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
   const isLastQuestion = currentIndex === totalQuestions - 1;
 
   // Power-up state for the active question position
-  const isHintUsed = Boolean(session.hintEliminatedOptions?.[currentIndex]);
-  const eliminatedOptions = session.hintEliminatedOptions?.[currentIndex] || [];
+  const isFiftyFiftyUsed = Boolean(session.fiftyFiftyEliminatedOptions?.[currentIndex]);
+  const eliminatedOptions = session.fiftyFiftyEliminatedOptions?.[currentIndex] || [];
   const isLearnRevealed = Boolean(session.learnClueRevealed?.[currentIndex]);
-  const isRetryUsed = Boolean(session.retryUsed?.[currentIndex]);
 
-  const hintCheck = PowerUpService.canUseHint(userStats, currentQuestion, isHintUsed);
+  const fiftyFiftyCheck = PowerUpService.canUseFiftyFifty(userStats, currentQuestion, isFiftyFiftyUsed);
   const learnCheck = PowerUpService.canUseLearn(userStats, currentQuestion, isLearnRevealed);
-  const isAnswerCorrect = session.currentEvaluation?.is_correct ?? false;
-  const retryCheck = PowerUpService.canUseRetry(userStats, isSubmitted, isAnswerCorrect, isRetryUsed);
 
   const categoryMeta = QUESTION_CATEGORIES[currentQuestion.category] || {
     label: currentQuestion.category,
@@ -135,7 +130,7 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <span className="font-bold block text-amber-900 text-[11px] uppercase tracking-wider">
-                Clinical Learning Clue
+                Clinical Learning Objective
               </span>
               <p className="mt-0.5 leading-relaxed text-amber-900/90 text-xs font-medium">
                 {currentQuestion.learning_objective}
@@ -160,37 +155,39 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
       {/* In-Session Power-Up Bar (Displayed before submission) */}
       {!isSubmitted && (
         <div className="shrink-0 bg-surface-white/95 border-t border-slate-100 px-3.5 py-1.5 z-20">
-          <div className="flex items-center justify-between gap-1.5 max-w-md mx-auto w-full">
-            {/* HINT Power-Up Button */}
-            <button
-              type="button"
-              onClick={onApplyHint}
-              disabled={!hintCheck.canUse}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold border transition-all min-h-[44px] ${
-                hintCheck.canUse
-                  ? 'bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100 active:scale-[0.98] shadow-2xs cursor-pointer'
-                  : isHintUsed
-                  ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-                  : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed opacity-50'
-              }`}
-              title={hintCheck.reason || 'Eliminates 2 incorrect options'}
-              aria-label={
-                hintCheck.isUnlocked
-                  ? isHintUsed
-                    ? 'HINT (Already used on this question)'
-                    : 'Use HINT power-up to eliminate 2 incorrect options'
-                  : `HINT (Locked: ${userStats.totalCorrectAnswersCount || 0}/50 correct answers)`
-              }
-            >
-              {hintCheck.isUnlocked ? (
-                <HelpCircle className="w-3.5 h-3.5 shrink-0 text-brand-600" />
-              ) : (
-                <Lock className="w-3 h-3 shrink-0 text-slate-400" />
-              )}
-              <span className="truncate">
-                {isHintUsed ? 'HINT (Used)' : 'HINT'}
-              </span>
-            </button>
+          <div className="flex items-center justify-between gap-2 max-w-md mx-auto w-full">
+            {/* 50/50 Power-Up Button (Only rendered for MCQ questions) */}
+            {currentQuestion.type === 'MCQ' && (
+              <button
+                type="button"
+                onClick={onApplyFiftyFifty}
+                disabled={!fiftyFiftyCheck.canUse}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold border transition-all min-h-[44px] ${
+                  fiftyFiftyCheck.canUse
+                    ? 'bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100 active:scale-[0.98] shadow-2xs cursor-pointer'
+                    : isFiftyFiftyUsed
+                    ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                    : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed opacity-50'
+                }`}
+                title={fiftyFiftyCheck.reason || 'Removes 2 incorrect options'}
+                aria-label={
+                  fiftyFiftyCheck.isUnlocked
+                    ? isFiftyFiftyUsed
+                      ? '50/50 (Already used on this question)'
+                      : 'Use 50/50 power-up to remove 2 incorrect options'
+                    : `50/50 (Locked: Unlock at a 20-day streak, ${userStats.currentStreak || 0}/20)`
+                }
+              >
+                {fiftyFiftyCheck.isUnlocked ? (
+                  <Sparkles className="w-3.5 h-3.5 shrink-0 text-brand-600" />
+                ) : (
+                  <Lock className="w-3 h-3 shrink-0 text-slate-400" />
+                )}
+                <span className="truncate">
+                  {isFiftyFiftyUsed ? '50/50 (Used)' : '50/50'}
+                </span>
+              </button>
+            )}
 
             {/* LEARN Power-Up Button */}
             <button
@@ -204,13 +201,13 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
                   ? 'bg-amber-100/50 text-amber-700 border-amber-200 cursor-not-allowed opacity-80'
                   : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed opacity-50'
               }`}
-              title={learnCheck.reason || 'Reveals clinical learning clue'}
+              title={learnCheck.reason || 'Shows the learning objective'}
               aria-label={
                 learnCheck.isUnlocked
                   ? isLearnRevealed
-                    ? 'LEARN (Clue active)'
-                    : 'Use LEARN power-up to reveal clinical learning clue'
-                  : `LEARN (Locked: ${userStats.completedQuestionsCount || 0}/100 questions answered)`
+                    ? 'LEARN (Objective active)'
+                    : 'Use LEARN power-up to show learning objective'
+                  : `LEARN (Locked: Unlock after 100 answered questions, ${userStats.completedQuestionsCount || 0}/100)`
               }
             >
               {learnCheck.isUnlocked ? (
@@ -222,37 +219,6 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
                 {isLearnRevealed ? 'LEARN (Active)' : 'LEARN'}
               </span>
             </button>
-
-            {/* RETRY Status Indicator */}
-            <div
-              className={`flex items-center justify-center gap-1 px-2 py-2 rounded-xl text-[11px] font-bold border min-h-[44px] shrink-0 ${
-                (userStats.currentStreak || 0) >= 20
-                  ? isRetryUsed
-                    ? 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : 'bg-slate-50 text-slate-400 border-slate-200 opacity-50'
-              }`}
-              title={
-                (userStats.currentStreak || 0) >= 20
-                  ? isRetryUsed
-                    ? 'RETRY used on this question'
-                    : 'RETRY is active: will trigger if answer is incorrect'
-                  : `RETRY unlocks at 20-day streak (${userStats.currentStreak || 0}/20)`
-              }
-            >
-              {(userStats.currentStreak || 0) >= 20 ? (
-                <RotateCcw className="w-3 h-3 text-emerald-600" />
-              ) : (
-                <Lock className="w-3 h-3 text-slate-400" />
-              )}
-              <span className="truncate text-[10px]">
-                {(userStats.currentStreak || 0) >= 20
-                  ? isRetryUsed
-                    ? 'RETRY (Used)'
-                    : 'RETRY'
-                  : 'RETRY (20d)'}
-              </span>
-            </div>
           </div>
         </div>
       )}
@@ -281,8 +247,6 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
           isOpen={isSubmitted}
           onContinue={onNextQuestion}
           isLastQuestion={isLastQuestion}
-          canRetry={retryCheck.canUse}
-          onUseRetry={onApplyRetry}
         />
       )}
 

@@ -23,8 +23,8 @@ describe('Dedicated PowerUpsScreen View', () => {
     lastActiveDate: '2026-09-29',
     completedQuestionsCount: 120, // Unlocks LEARN (>= 100)
     completedSessionsCount: 12,
-    totalCorrectAnswersCount: 65, // Unlocks HINT (>= 50)
-    streakShieldConsumed: false, // Unlocks RETRY (>= 20) and STREAK SHIELD (>= 30)
+    totalCorrectAnswersCount: 65,
+    streakShieldConsumed: false, // Unlocks 50/50 (>= 20) and STREAK SHIELD (>= 30)
   };
 
   const consumedStats: UserStats = {
@@ -32,7 +32,7 @@ describe('Dedicated PowerUpsScreen View', () => {
     streakShieldConsumed: true,
   };
 
-  it('renders PowerUpsScreen with header, banner, and all 4 power-up tools', () => {
+  it('renders PowerUpsScreen with header, banner, and EXACTLY 3 power-up tools: 50/50, Learn, Streak Shield', () => {
     const html = renderToString(
       React.createElement(PowerUpsScreen, {
         userStats: lockedStats,
@@ -43,13 +43,16 @@ describe('Dedicated PowerUpsScreen View', () => {
     expect(html).toContain('Power-Ups');
     expect(html).toContain('My Learning Tools');
     expect(html).toContain('Use these tools while learning');
-    expect(html).toContain('Hint');
+    expect(html).toContain('50/50');
     expect(html).toContain('Learn');
-    expect(html).toContain('Retry');
     expect(html).toContain('Streak Shield');
+
+    // Removal verification: NO HINT or RETRY
+    expect(html).not.toContain('Hint');
+    expect(html).not.toContain('Retry');
   });
 
-  it('displays Locked status when criteria are not met', () => {
+  it('displays Locked status and frozen threshold labels when criteria are not met', () => {
     const html = renderToString(
       React.createElement(PowerUpsScreen, {
         userStats: lockedStats,
@@ -58,9 +61,9 @@ describe('Dedicated PowerUpsScreen View', () => {
     );
 
     expect(html).toContain('Locked');
-    // Ensure no complicated formulas are shown
-    expect(html).not.toContain('more needed');
-    expect(html).not.toContain('Unlocks at');
+    expect(html).toContain('Unlock at a 20-day streak');
+    expect(html).toContain('Unlock after 100 answered questions');
+    expect(html).toContain('Unlock at a 30-day streak');
   });
 
   it('displays Available status when criteria are met', () => {
@@ -83,6 +86,7 @@ describe('Dedicated PowerUpsScreen View', () => {
     );
 
     expect(html).toContain('Used');
+    expect(html).toContain('Protects one missed day');
   });
 
   it('handles back button callback correctly', () => {

@@ -81,59 +81,62 @@ describe('HomeScreen Progression & Power-Up Services', () => {
   });
 
   // 4. Official Power-Up Names
-  it('uses official names HINT, LEARN, RETRY, STREAK SHIELD', () => {
+  it('uses official names 50/50, LEARN, STREAK SHIELD and contains exactly 3 power-ups', () => {
     const inventory = PowerUpService.calculateInventory(baseStats);
-    const hint = inventory.items.find((i) => i.id === 'HINT')!;
+    expect(inventory.items.length).toBe(2); // 50/50 and LEARN
+    const fiftyFifty = inventory.items.find((i) => i.id === 'FIFTY_FIFTY')!;
     const learn = inventory.items.find((i) => i.id === 'LEARN')!;
-    const retry = inventory.items.find((i) => i.id === 'RETRY')!;
 
-    expect(hint.name).toBe('HINT');
+    expect(fiftyFifty.name).toBe('50/50');
     expect(learn.name).toBe('LEARN');
-    expect(retry.name).toBe('RETRY');
     expect(inventory.streakShield.name).toBe('STREAK SHIELD');
+
+    // Verify HINT and RETRY are completely absent
+    expect(inventory.items.some((i) => (i.id as string) === 'HINT')).toBe(false);
+    expect(inventory.items.some((i) => (i.id as string) === 'RETRY')).toBe(false);
   });
 
-  // 5. HINT unlock boundary (49 correct -> locked, 50 correct -> unlocked)
-  it('enforces HINT unlock strictly at 50 correct answers', () => {
-    // 49 correct answers + 100 answered = LOCKED
-    const stats49: UserStats = {
+  // 5. 50/50 unlock boundary (19 streak -> locked, 20 streak -> unlocked)
+  it('enforces 50/50 unlock strictly at 20-day streak', () => {
+    // 19-day streak + 500 questions = LOCKED
+    const stats19: UserStats = {
       ...baseStats,
-      totalCorrectAnswersCount: 49,
-      completedQuestionsCount: 100,
+      currentStreak: 19,
+      completedQuestionsCount: 500,
     };
-    const inv49 = PowerUpService.calculateInventory(stats49);
-    const hint49 = inv49.items.find((i) => i.id === 'HINT')!;
-    expect(hint49.status).toBe('LOCKED');
-    expect(hint49.isUnlocked).toBe(false);
-    expect(hint49.unlockCurrent).toBe(49);
-    expect(hint49.unlockTarget).toBe(50);
+    const inv19 = PowerUpService.calculateInventory(stats19);
+    const ff19 = inv19.items.find((i) => i.id === 'FIFTY_FIFTY')!;
+    expect(ff19.status).toBe('LOCKED');
+    expect(ff19.isUnlocked).toBe(false);
+    expect(ff19.unlockCurrent).toBe(19);
+    expect(ff19.unlockTarget).toBe(20);
 
-    // 50 correct answers + 50 answered = UNLOCKED
-    const stats50: UserStats = {
+    // 20-day streak = UNLOCKED
+    const stats20: UserStats = {
       ...baseStats,
-      totalCorrectAnswersCount: 50,
-      completedQuestionsCount: 50,
+      currentStreak: 20,
     };
-    const inv50 = PowerUpService.calculateInventory(stats50);
-    const hint50 = inv50.items.find((i) => i.id === 'HINT')!;
-    expect(hint50.status).toBe('AVAILABLE');
-    expect(hint50.isUnlocked).toBe(true);
-    expect(hint50.unlockCurrent).toBe(50);
+    const inv20 = PowerUpService.calculateInventory(stats20);
+    const ff20 = inv20.items.find((i) => i.id === 'FIFTY_FIFTY')!;
+    expect(ff20.status).toBe('AVAILABLE');
+    expect(ff20.isUnlocked).toBe(true);
+    expect(ff20.unlockCurrent).toBe(20);
   });
 
   // 6. LEARN unlock boundary (99 answered -> locked, 100 answered -> unlocked)
   it('enforces LEARN unlock strictly at 100 questions answered', () => {
-    // 99 answered + 50 correct = LOCKED
+    // 99 answered + 50 streak = LOCKED
     const stats99: UserStats = {
       ...baseStats,
       completedQuestionsCount: 99,
-      totalCorrectAnswersCount: 50,
+      currentStreak: 50,
     };
     const inv99 = PowerUpService.calculateInventory(stats99);
     const learn99 = inv99.items.find((i) => i.id === 'LEARN')!;
     expect(learn99.status).toBe('LOCKED');
     expect(learn99.isUnlocked).toBe(false);
     expect(learn99.unlockCurrent).toBe(99);
+    expect(learn99.unlockTarget).toBe(100);
 
     // 100 answered = UNLOCKED
     const stats100: UserStats = {
@@ -147,33 +150,7 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(learn100.unlockCurrent).toBe(100);
   });
 
-  // 7. RETRY unlock boundary (19-day streak -> locked, 20-day streak -> unlocked)
-  it('enforces RETRY unlock strictly at 20-day streak', () => {
-    // 19-day streak + 500 questions = LOCKED
-    const stats19: UserStats = {
-      ...baseStats,
-      currentStreak: 19,
-      completedQuestionsCount: 500,
-    };
-    const inv19 = PowerUpService.calculateInventory(stats19);
-    const retry19 = inv19.items.find((i) => i.id === 'RETRY')!;
-    expect(retry19.status).toBe('LOCKED');
-    expect(retry19.isUnlocked).toBe(false);
-    expect(retry19.unlockCurrent).toBe(19);
-
-    // 20-day streak = UNLOCKED
-    const stats20: UserStats = {
-      ...baseStats,
-      currentStreak: 20,
-    };
-    const inv20 = PowerUpService.calculateInventory(stats20);
-    const retry20 = inv20.items.find((i) => i.id === 'RETRY')!;
-    expect(retry20.status).toBe('AVAILABLE');
-    expect(retry20.isUnlocked).toBe(true);
-    expect(retry20.unlockCurrent).toBe(20);
-  });
-
-  // 8. STREAK SHIELD unlock boundary (29-day streak -> locked, 30-day streak -> unlocked)
+  // 7. STREAK SHIELD unlock boundary (29-day streak -> locked, 30-day streak -> unlocked)
   it('enforces STREAK SHIELD unlock strictly at 30-day streak', () => {
     // 29-day streak + 500 XP = LOCKED
     const stats29: UserStats = {
@@ -185,6 +162,7 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(inv29.streakShield.status).toBe('LOCKED');
     expect(inv29.streakShield.isUnlocked).toBe(false);
     expect(inv29.streakShield.unlockCurrent).toBe(29);
+    expect(inv29.streakShield.unlockTarget).toBe(30);
 
     // 30-day streak = UNLOCKED
     const stats30: UserStats = {
@@ -197,44 +175,45 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(inv30.streakShield.unlockCurrent).toBe(30);
   });
 
-  // 9. Unrelated Counter Isolation
+  // 8. Unrelated Counter Isolation
   it('does not incorrectly unlock power-ups from unrelated counters', () => {
-    // 30-day streak with 0 correct answers does NOT unlock HINT
+    // 20-day streak with 0 questions answered unlocks 50/50 but NOT LEARN
     const statsStreakOnly: UserStats = {
       ...baseStats,
-      currentStreak: 30,
-      totalCorrectAnswersCount: 0,
+      currentStreak: 20,
       completedQuestionsCount: 0,
     };
     const invStreak = PowerUpService.calculateInventory(statsStreakOnly);
-    expect(invStreak.items.find((i) => i.id === 'HINT')!.isUnlocked).toBe(false);
+    expect(invStreak.items.find((i) => i.id === 'FIFTY_FIFTY')!.isUnlocked).toBe(true);
     expect(invStreak.items.find((i) => i.id === 'LEARN')!.isUnlocked).toBe(false);
-    expect(invStreak.items.find((i) => i.id === 'RETRY')!.isUnlocked).toBe(true);
-    expect(invStreak.streakShield.isUnlocked).toBe(true);
+    expect(invStreak.streakShield.isUnlocked).toBe(false);
+
+    // 100 questions with 0 streak unlocks LEARN but NOT 50/50 or STREAK SHIELD
+    const statsQuestionsOnly: UserStats = {
+      ...baseStats,
+      completedQuestionsCount: 100,
+      currentStreak: 0,
+    };
+    const invQ = PowerUpService.calculateInventory(statsQuestionsOnly);
+    expect(invQ.items.find((i) => i.id === 'FIFTY_FIFTY')!.isUnlocked).toBe(false);
+    expect(invQ.items.find((i) => i.id === 'LEARN')!.isUnlocked).toBe(true);
+    expect(invQ.streakShield.isUnlocked).toBe(false);
   });
 
-  it('correctly handles consumed power-up overrides', () => {
+  it('correctly handles consumed streak shield override', () => {
     const stats: UserStats = {
       ...baseStats,
-      totalCorrectAnswersCount: 55,
       completedQuestionsCount: 60,
       currentStreak: 35,
+      streakShieldConsumed: true,
     };
 
-    const inventory = PowerUpService.calculateInventory(stats, {
-      HINT: true,
-      STREAK_SHIELD: true,
-    });
-
-    const hint = inventory.items.find((i) => i.id === 'HINT')!;
-    expect(hint.isUnlocked).toBe(true);
-    expect(hint.status).toBe('CONSUMED');
-
+    const inventory = PowerUpService.calculateInventory(stats);
     expect(inventory.streakShield.isUnlocked).toBe(true);
     expect(inventory.streakShield.status).toBe('CONSUMED');
   });
 
-  // 10. Profile/Progress entry point and Screen
+  // 9. Profile/Progress entry point and Screen
   it('ProfileScreen renders with back callback', () => {
     let backed = false;
     const profileEl = React.createElement(ProfileScreen, {
@@ -246,7 +225,7 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(backed).toBe(true);
   });
 
-  // 11. Loading state handling
+  // 10. Loading state handling
   it('HomeScreen accepts loading prop and disables interactive button', () => {
     const loadingEl = React.createElement(HomeScreen, {
       userStats: baseStats,
@@ -256,7 +235,7 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(loadingEl.props.isLoading).toBe(true);
   });
 
-  // 12. Error state and retry handling
+  // 11. Error state and retry handling
   it('HomeScreen accepts error and retry props', () => {
     let retried = false;
     const errorEl = React.createElement(HomeScreen, {
@@ -272,7 +251,7 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(retried).toBe(true);
   });
 
-  // 13. Existing Today\'s Training behavior preservation across states
+  // 12. Existing Today\'s Training behavior preservation across states
   it('preserves existing daily status transitions', () => {
     const notStartedEl = React.createElement(HomeScreen, {
       userStats: baseStats,
@@ -298,7 +277,7 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(completedEl.props.dailyStatus).toBe('REVIEW_VIEWED');
   });
 
-  // 14. Top-Right Header Action Cluster Tests
+  // 13. Top-Right Header Action Cluster Tests
   it('HomeScreen passes level, power-ups, and profile navigation props to Header', () => {
     let navProfileTriggered = false;
 

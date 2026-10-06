@@ -30,9 +30,8 @@ export function App() {
     startDailySession,
     setAnswer,
     submitCurrentAnswer,
-    applyHint,
+    applyFiftyFifty,
     applyLearn,
-    applyRetry,
     nextQuestion,
     markReviewViewed,
     refreshUserStats,
@@ -162,9 +161,8 @@ export function App() {
           currentQuestion={currentQuestion}
           onSetAnswer={setAnswer}
           onSubmitAnswer={submitCurrentAnswer}
-          onApplyHint={applyHint}
+          onApplyFiftyFifty={applyFiftyFifty}
           onApplyLearn={applyLearn}
-          onApplyRetry={applyRetry}
           onNextQuestion={handleNextQuestion}
           onExitSession={handleExitSession}
         />

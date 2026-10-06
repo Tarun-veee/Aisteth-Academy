@@ -86,7 +86,7 @@ export const MCQRenderer: React.FC<MCQRendererProps> = ({
             aria-disabled={isEliminated}
             aria-label={
               isEliminated
-                ? `Option ${label}: ${text} (Eliminated by Hint)`
+                ? `Option ${label}: ${text} (Eliminated by 50/50)`
                 : `Option ${label}: ${text}`
             }
           >
@@ -106,7 +106,7 @@ export const MCQRenderer: React.FC<MCQRendererProps> = ({
               {text}
             </span>
 
-            {/* Hint Eliminated Tag */}
+            {/* 50/50 Eliminated Tag */}
             {isEliminated && !isSubmitted && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md shrink-0">
                 Eliminated

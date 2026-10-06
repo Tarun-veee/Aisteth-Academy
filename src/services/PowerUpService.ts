@@ -1,12 +1,14 @@
 /**
  * AiSteth Academy - Power-Up Service
- * Pure deterministic calculation of Power-Up unlock statuses, in-session interactions, and Streak Shield protection.
+ * Pure deterministic calculation of Power-Up unlock statuses and in-session interactions.
+ * Specification: Frozen Three-Power-Up System.
  *
- * Official Power-Ups and Unlock Rules:
- * 1. HINT: Unlocks when totalCorrectAnswersCount >= 50 (50 correct answers)
+ * Official Power-Ups and Frozen Unlock Rules:
+ * 1. 50/50: Unlocks when currentStreak >= 20 (20-day streak)
  * 2. LEARN: Unlocks when completedQuestionsCount >= 100 (100 questions answered)
- * 3. RETRY: Unlocks when currentStreak >= 20 (20-day streak)
- * 4. STREAK SHIELD: Unlocks when currentStreak >= 30 (30-day streak)
+ * 3. STREAK SHIELD: Unlocks when currentStreak >= 30 (30-day streak)
+ *
+ * HINT and RETRY are permanently removed.
  */
 
 import { UserStats } from '../models/session.types';
@@ -22,23 +24,22 @@ export class PowerUpService {
     stats: UserStats,
     consumedOverrides?: Partial<Record<string, boolean>>
   ): PowerUpInventory {
-    const correctAnswers = stats.totalCorrectAnswersCount || 0;
-    const questionsAnswered = stats.completedQuestionsCount || 0;
     const streak = stats.currentStreak || 0;
+    const questionsAnswered = stats.completedQuestionsCount || 0;
 
-    // 1. HINT Power-Up (Unlock at 50 correct answers)
-    const hintUnlocked = correctAnswers >= 50;
-    const hintConsumed = consumedOverrides?.HINT ?? false;
-    const hintItem: PowerUpItem = {
-      id: 'HINT',
-      name: 'HINT',
-      tagline: 'Eliminates 2 incorrect options',
-      description: 'Narrows down multiple choice options to increase clinical diagnostic accuracy.',
-      status: hintUnlocked ? (hintConsumed ? 'CONSUMED' : 'AVAILABLE') : 'LOCKED',
-      unlockTarget: 50,
-      unlockCurrent: Math.min(50, correctAnswers),
-      unlockMetricLabel: 'correct answers',
-      isUnlocked: hintUnlocked,
+    // 1. 50/50 Power-Up (Unlock at 20-day streak)
+    const fiftyFiftyUnlocked = streak >= 20;
+    const fiftyFiftyConsumed = consumedOverrides?.FIFTY_FIFTY ?? false;
+    const fiftyFiftyItem: PowerUpItem = {
+      id: 'FIFTY_FIFTY',
+      name: '50/50',
+      tagline: 'Removes 2 incorrect options',
+      description: 'Narrows down multiple choice options by eliminating two incorrect choices.',
+      status: fiftyFiftyUnlocked ? (fiftyFiftyConsumed ? 'CONSUMED' : 'AVAILABLE') : 'LOCKED',
+      unlockTarget: 20,
+      unlockCurrent: Math.min(20, streak),
+      unlockMetricLabel: 'day streak',
+      isUnlocked: fiftyFiftyUnlocked,
     };
 
     // 2. LEARN Power-Up (Unlock at 100 questions answered)
@@ -47,8 +48,8 @@ export class PowerUpService {
     const learnItem: PowerUpItem = {
       id: 'LEARN',
       name: 'LEARN',
-      tagline: 'Reveals clinical learning clue',
-      description: 'Provides a non-spoiler clinical diagnostic clue before submitting an answer.',
+      tagline: 'Shows the learning objective',
+      description: 'Reveals the clinical learning objective associated with the active question.',
       status: learnUnlocked ? (learnConsumed ? 'CONSUMED' : 'AVAILABLE') : 'LOCKED',
       unlockTarget: 100,
       unlockCurrent: Math.min(100, questionsAnswered),
@@ -56,28 +57,13 @@ export class PowerUpService {
       isUnlocked: learnUnlocked,
     };
 
-    // 3. RETRY Power-Up (Unlock at 20-day streak)
-    const retryUnlocked = streak >= 20;
-    const retryConsumed = consumedOverrides?.RETRY ?? false;
-    const retryItem: PowerUpItem = {
-      id: 'RETRY',
-      name: 'RETRY',
-      tagline: 'Re-attempt 1 question',
-      description: 'Allows a second attempt on a missed question without breaking performance flow.',
-      status: retryUnlocked ? (retryConsumed ? 'CONSUMED' : 'AVAILABLE') : 'LOCKED',
-      unlockTarget: 20,
-      unlockCurrent: Math.min(20, streak),
-      unlockMetricLabel: 'day streak',
-      isUnlocked: retryUnlocked,
-    };
-
-    // 4. STREAK SHIELD Power-Up (Unlock at 30-day streak)
+    // 3. STREAK SHIELD Power-Up (Unlock at 30-day streak)
     const shieldUnlocked = streak >= 30;
     const shieldConsumed = (consumedOverrides?.STREAK_SHIELD ?? false) || Boolean(stats.streakShieldConsumed);
     const shieldItem: PowerUpItem = {
       id: 'STREAK_SHIELD',
       name: 'STREAK SHIELD',
-      tagline: 'Protects 1 missed day',
+      tagline: 'Protects one missed day',
       description: 'Automatically preserves your active streak if you miss one calendar day of training.',
       status: shieldUnlocked ? (shieldConsumed ? 'CONSUMED' : 'AVAILABLE') : 'LOCKED',
       unlockTarget: 30,
@@ -86,8 +72,8 @@ export class PowerUpService {
       isUnlocked: shieldUnlocked,
     };
 
-    const items = [hintItem, learnItem, retryItem];
-    const totalUnlockedCount = items.filter((i) => i.isUnlocked).length + (shieldItem.isUnlocked ? 1 : 0);
+    const items = [fiftyFiftyItem, learnItem];
+    const totalUnlockedCount = (fiftyFiftyItem.isUnlocked ? 1 : 0) + (learnItem.isUnlocked ? 1 : 0) + (shieldItem.isUnlocked ? 1 : 0);
 
     return {
       items,
@@ -97,15 +83,15 @@ export class PowerUpService {
   }
 
   /**
-   * Determines if HINT can be activated on the current question.
+   * Determines if 50/50 can be activated on the current question.
    * Only supported on MCQ questions.
    */
-  static canUseHint(
+  static canUseFiftyFifty(
     stats: UserStats,
     question: Question | null,
-    isHintAlreadyUsed: boolean
+    isFiftyFiftyAlreadyUsed: boolean
   ): { canUse: boolean; isUnlocked: boolean; isSupported: boolean; reason?: string } {
-    const isUnlocked = (stats.totalCorrectAnswersCount || 0) >= 50;
+    const isUnlocked = (stats.currentStreak || 0) >= 20;
     if (!question) {
       return { canUse: false, isUnlocked, isSupported: false, reason: 'No active question' };
     }
@@ -116,7 +102,7 @@ export class PowerUpService {
         canUse: false,
         isUnlocked: false,
         isSupported,
-        reason: `Unlocks at 50 correct answers (${stats.totalCorrectAnswersCount || 0}/50)`,
+        reason: `Unlocks at a 20-day streak (${stats.currentStreak || 0}/20)`,
       };
     }
 
@@ -125,16 +111,16 @@ export class PowerUpService {
         canUse: false,
         isUnlocked: true,
         isSupported: false,
-        reason: 'HINT is only available for Multiple Choice questions',
+        reason: '50/50 is only available for Multiple Choice questions',
       };
     }
 
-    if (isHintAlreadyUsed) {
+    if (isFiftyFiftyAlreadyUsed) {
       return {
         canUse: false,
         isUnlocked: true,
         isSupported: true,
-        reason: 'HINT has already been used on this question',
+        reason: '50/50 has already been used on this question',
       };
     }
 
@@ -143,7 +129,7 @@ export class PowerUpService {
 
   /**
    * Generates the eliminated options for an MCQ question.
-   * Guarantees the correct answer is NEVER eliminated and eliminates 2 incorrect options.
+   * Guarantees the correct answer is NEVER eliminated and eliminates exactly 2 incorrect options.
    */
   static getEliminatedOptions(
     question: MCQQuestion
@@ -164,7 +150,7 @@ export class PowerUpService {
 
   /**
    * Determines if LEARN can be activated on the current question.
-   * Reveals a clinical clue without spoiling the direct answer.
+   * Reveals the clinical learning objective without spoiling the direct answer.
    */
   static canUseLearn(
     stats: UserStats,
@@ -180,7 +166,7 @@ export class PowerUpService {
       return {
         canUse: false,
         isUnlocked: false,
-        reason: `Unlocks at 100 questions answered (${stats.completedQuestionsCount || 0}/100)`,
+        reason: `Unlocks after 100 answered questions (${stats.completedQuestionsCount || 0}/100)`,
       };
     }
 
@@ -188,7 +174,7 @@ export class PowerUpService {
       return {
         canUse: false,
         isUnlocked: true,
-        reason: 'No clinical clue available for this question',
+        reason: 'No clinical learning objective available for this question',
       };
     }
 
@@ -196,7 +182,7 @@ export class PowerUpService {
       return {
         canUse: false,
         isUnlocked: true,
-        reason: 'LEARN clue is already active for this question',
+        reason: 'LEARN objective is already active for this question',
       };
     }
 
@@ -205,51 +191,5 @@ export class PowerUpService {
       isUnlocked: true,
       clue: question.learning_objective,
     };
-  }
-
-  /**
-   * Determines if RETRY can be activated after an incorrect answer submission.
-   */
-  static canUseRetry(
-    stats: UserStats,
-    isSubmitted: boolean,
-    isCorrect: boolean,
-    isRetryAlreadyUsed: boolean
-  ): { canUse: boolean; isUnlocked: boolean; reason?: string } {
-    const isUnlocked = (stats.currentStreak || 0) >= 20;
-
-    if (!isUnlocked) {
-      return {
-        canUse: false,
-        isUnlocked: false,
-        reason: `Unlocks at 20-day streak (${stats.currentStreak || 0}/20)`,
-      };
-    }
-
-    if (!isSubmitted) {
-      return {
-        canUse: false,
-        isUnlocked: true,
-        reason: 'RETRY becomes available after an incorrect answer submission',
-      };
-    }
-
-    if (isCorrect) {
-      return {
-        canUse: false,
-        isUnlocked: true,
-        reason: 'Question was answered correctly; RETRY not needed',
-      };
-    }
-
-    if (isRetryAlreadyUsed) {
-      return {
-        canUse: false,
-        isUnlocked: true,
-        reason: 'RETRY has already been used once on this question',
-      };
-    }
-
-    return { canUse: true, isUnlocked: true };
   }
 }

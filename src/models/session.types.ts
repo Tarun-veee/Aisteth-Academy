@@ -33,9 +33,8 @@ export interface DailySessionData {
   totalQuestions: number;
   totalXpEarned: number;
   correctCount: number;
-  hintEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
+  fiftyFiftyEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
   learnClueRevealed?: Record<number, boolean>;
-  retryUsed?: Record<number, boolean>;
 }
 
 export interface SessionState {
@@ -53,9 +52,8 @@ export interface SessionState {
   reviewViewed: boolean;
   startTime: number | null;
   endTime: number | null;
-  hintEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
+  fiftyFiftyEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
   learnClueRevealed?: Record<number, boolean>;
-  retryUsed?: Record<number, boolean>;
 }
 
 export interface StoredSessionRecord {

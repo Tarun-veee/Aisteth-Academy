@@ -3,7 +3,7 @@ import { AnswerEvaluationResult } from '../../models/question.types';
 import { ResultBanner } from './ResultBanner';
 import { MicroLearningSheet } from './MicroLearningSheet';
 import { Button } from '../common/Button';
-import { ArrowRight, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
+import { ArrowRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { useBottomSheetGesture } from '../../hooks/useBottomSheetGesture';
 
 export interface FeedbackDrawerProps {
@@ -11,8 +11,6 @@ export interface FeedbackDrawerProps {
   isOpen: boolean;
   onContinue: () => void;
   isLastQuestion?: boolean;
-  canRetry?: boolean;
-  onUseRetry?: () => void;
 }
 
 export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
@@ -20,8 +18,6 @@ export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
   isOpen,
   onContinue,
   isLastQuestion = false,
-  canRetry = false,
-  onUseRetry,
 }) => {
   const {
     sheetState,
@@ -128,21 +124,8 @@ export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
         <MicroLearningSheet evaluation={evaluation} />
       </div>
 
-      {/* Action Buttons: Continue OR Retry (shrink-0 + safe area padding) */}
+      {/* Action Buttons: Continue (shrink-0 + safe area padding) */}
       <div className="p-3 sm:p-4 pt-2 border-t border-black/5 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-inherit flex gap-2.5">
-        {!isCorrect && canRetry && onUseRetry && (
-          <Button
-            variant="outline"
-            fullWidth
-            size="lg"
-            onClick={onUseRetry}
-            icon={<RotateCcw className="w-5 h-5 mr-1" />}
-            className="font-bold min-h-[48px] sm:min-h-[52px] border-rose-300 hover:bg-rose-100/50 active:bg-rose-100 text-rose-950"
-            aria-label="Use RETRY Power-Up to re-attempt this question"
-          >
-            Use RETRY
-          </Button>
-        )}
         <Button
           variant={isCorrect ? 'success' : 'primary'}
           fullWidth

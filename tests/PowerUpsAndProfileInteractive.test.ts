@@ -55,31 +55,31 @@ describe('Power-Up Business Logic & Unlock Conditions', () => {
     version: '1.0.0',
   };
 
-  describe('1. HINT Power-Up', () => {
-    it('is LOCKED when totalCorrectAnswersCount < 50 (Boundary test 49 vs 50)', () => {
-      const stats49: UserStats = { ...baseStats, totalCorrectAnswersCount: 49 };
-      const inventory49 = PowerUpService.calculateInventory(stats49);
-      const hintItem49 = inventory49.items.find((i) => i.id === 'HINT')!;
-      expect(hintItem49.isUnlocked).toBe(false);
-      expect(hintItem49.status).toBe('LOCKED');
-      expect(hintItem49.unlockCurrent).toBe(49);
+  describe('1. 50/50 Power-Up', () => {
+    it('is LOCKED when currentStreak < 20 (Boundary test 19 vs 20)', () => {
+      const stats19: UserStats = { ...baseStats, currentStreak: 19 };
+      const inventory19 = PowerUpService.calculateInventory(stats19);
+      const ffItem19 = inventory19.items.find((i) => i.id === 'FIFTY_FIFTY')!;
+      expect(ffItem19.isUnlocked).toBe(false);
+      expect(ffItem19.status).toBe('LOCKED');
+      expect(ffItem19.unlockCurrent).toBe(19);
 
-      const check49 = PowerUpService.canUseHint(stats49, sampleMCQ, false);
-      expect(check49.canUse).toBe(false);
-      expect(check49.isUnlocked).toBe(false);
+      const check19 = PowerUpService.canUseFiftyFifty(stats19, sampleMCQ, false);
+      expect(check19.canUse).toBe(false);
+      expect(check19.isUnlocked).toBe(false);
 
-      const stats50: UserStats = { ...baseStats, totalCorrectAnswersCount: 50 };
-      const inventory50 = PowerUpService.calculateInventory(stats50);
-      const hintItem50 = inventory50.items.find((i) => i.id === 'HINT')!;
-      expect(hintItem50.isUnlocked).toBe(true);
-      expect(hintItem50.status).toBe('AVAILABLE');
+      const stats20: UserStats = { ...baseStats, currentStreak: 20 };
+      const inventory20 = PowerUpService.calculateInventory(stats20);
+      const ffItem20 = inventory20.items.find((i) => i.id === 'FIFTY_FIFTY')!;
+      expect(ffItem20.isUnlocked).toBe(true);
+      expect(ffItem20.status).toBe('AVAILABLE');
 
-      const check50 = PowerUpService.canUseHint(stats50, sampleMCQ, false);
-      expect(check50.canUse).toBe(true);
-      expect(check50.isUnlocked).toBe(true);
+      const check20 = PowerUpService.canUseFiftyFifty(stats20, sampleMCQ, false);
+      expect(check20.canUse).toBe(true);
+      expect(check20.isUnlocked).toBe(true);
     });
 
-    it('eliminates 2 incorrect options and NEVER eliminates the correct answer', () => {
+    it('eliminates exactly 2 incorrect options and NEVER eliminates the correct answer', () => {
       // Test when correct answer is option_a
       const mcqA = { ...sampleMCQ, correct_answer: 'option_a' as const };
       const elimA = PowerUpService.getEliminatedOptions(mcqA);
@@ -105,17 +105,17 @@ describe('Power-Up Business Logic & Unlock Conditions', () => {
       expect(elimD.includes('option_d')).toBe(false);
     });
 
-    it('is unavailable for unsupported question types (e.g. IMAGE_TAP)', () => {
-      const stats50: UserStats = { ...baseStats, totalCorrectAnswersCount: 50 };
-      const checkTap = PowerUpService.canUseHint(stats50, sampleImageTap, false);
+    it('is unavailable for non-MCQ question types (e.g. IMAGE_TAP)', () => {
+      const stats20: UserStats = { ...baseStats, currentStreak: 20 };
+      const checkTap = PowerUpService.canUseFiftyFifty(stats20, sampleImageTap, false);
       expect(checkTap.canUse).toBe(false);
       expect(checkTap.isSupported).toBe(false);
       expect(checkTap.reason).toContain('Multiple Choice');
     });
 
     it('cannot be reused on the same question if already used', () => {
-      const stats50: UserStats = { ...baseStats, totalCorrectAnswersCount: 50 };
-      const checkReused = PowerUpService.canUseHint(stats50, sampleMCQ, true);
+      const stats20: UserStats = { ...baseStats, currentStreak: 20 };
+      const checkReused = PowerUpService.canUseFiftyFifty(stats20, sampleMCQ, true);
       expect(checkReused.canUse).toBe(false);
       expect(checkReused.reason).toContain('already been used');
     });
@@ -158,50 +158,7 @@ describe('Power-Up Business Logic & Unlock Conditions', () => {
     });
   });
 
-  describe('3. RETRY Power-Up', () => {
-    it('is LOCKED when currentStreak < 20 (Boundary test 19 vs 20)', () => {
-      const stats19: UserStats = { ...baseStats, currentStreak: 19 };
-      const inv19 = PowerUpService.calculateInventory(stats19);
-      const retry19 = inv19.items.find((i) => i.id === 'RETRY')!;
-      expect(retry19.isUnlocked).toBe(false);
-
-      const check19 = PowerUpService.canUseRetry(stats19, true, false, false);
-      expect(check19.canUse).toBe(false);
-
-      const stats20: UserStats = { ...baseStats, currentStreak: 20 };
-      const inv20 = PowerUpService.calculateInventory(stats20);
-      const retry20 = inv20.items.find((i) => i.id === 'RETRY')!;
-      expect(retry20.isUnlocked).toBe(true);
-
-      const check20 = PowerUpService.canUseRetry(stats20, true, false, false);
-      expect(check20.canUse).toBe(true);
-    });
-
-    it('is only usable when answer is submitted and incorrect', () => {
-      const stats20: UserStats = { ...baseStats, currentStreak: 20 };
-
-      // Before submission
-      const beforeSubmit = PowerUpService.canUseRetry(stats20, false, false, false);
-      expect(beforeSubmit.canUse).toBe(false);
-
-      // After correct submission (not needed)
-      const afterCorrect = PowerUpService.canUseRetry(stats20, true, true, false);
-      expect(afterCorrect.canUse).toBe(false);
-
-      // After incorrect submission (applicable!)
-      const afterIncorrect = PowerUpService.canUseRetry(stats20, true, false, false);
-      expect(afterIncorrect.canUse).toBe(true);
-    });
-
-    it('cannot be used more than once per question position', () => {
-      const stats20: UserStats = { ...baseStats, currentStreak: 20 };
-      const checkAlreadyUsed = PowerUpService.canUseRetry(stats20, true, false, true);
-      expect(checkAlreadyUsed.canUse).toBe(false);
-      expect(checkAlreadyUsed.reason).toContain('already been used');
-    });
-  });
-
-  describe('4. STREAK SHIELD Power-Up', () => {
+  describe('3. STREAK SHIELD Power-Up (Edge Cases A through F)', () => {
     const storage = new StorageRepository();
 
     it('is LOCKED when currentStreak < 30 (Boundary test 29 vs 30)', () => {
@@ -216,46 +173,67 @@ describe('Power-Up Business Logic & Unlock Conditions', () => {
       expect(inv30.streakShield.status).toBe('AVAILABLE');
     });
 
-    it('automatically protects 1 missed calendar day when streak >= 30 and unconsumed', () => {
-      // Setup last active 2 days ago (missed 1 calendar day)
+    // CASE A: 30-day streak, 1 missed day -> shield protects streak
+    it('CASE A: 30-day streak protects exactly 1 missed day and consumes shield', () => {
       const twoDaysAgo = new Date();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
 
-      // Learner with 30-day streak & unconsumed shield
       const res = storage.computeStreak(twoDaysAgoStr, 30, false);
       expect(res.newStreak).toBe(31);
       expect(res.shieldWasConsumed).toBe(true);
     });
 
-    it('resets streak to 1 on missed day if shield is not unlocked (< 30 streak)', () => {
+    // CASE B: 30-day streak, 1 missed day -> consumed, another missed day -> breaks
+    it('CASE B: once shield is consumed, subsequent missed day resets streak to 1', () => {
       const twoDaysAgo = new Date();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
 
-      // Learner with only 15-day streak
-      const res = storage.computeStreak(twoDaysAgoStr, 15, false);
+      const res = storage.computeStreak(twoDaysAgoStr, 31, true); // already consumed
       expect(res.newStreak).toBe(1);
       expect(res.shieldWasConsumed).toBe(false);
     });
 
-    it('resets streak to 1 on missed day if shield was already consumed', () => {
+    // CASE C: 29-day streak, missed day -> no shield protection
+    it('CASE C: 29-day streak without unlock resets streak to 1 on missed day', () => {
       const twoDaysAgo = new Date();
       twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
 
-      // Learner with 35-day streak but shield consumed
-      const res = storage.computeStreak(twoDaysAgoStr, 35, true);
+      const res = storage.computeStreak(twoDaysAgoStr, 29, false);
       expect(res.newStreak).toBe(1);
       expect(res.shieldWasConsumed).toBe(false);
     });
 
-    it('resets streak to 1 if learner misses 2 or more consecutive days', () => {
+    // CASE D: 31-day streak, missed day -> shield protects
+    it('CASE D: 31-day streak protects missed day and consumes shield', () => {
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
+
+      const res = storage.computeStreak(twoDaysAgoStr, 31, false);
+      expect(res.newStreak).toBe(32);
+      expect(res.shieldWasConsumed).toBe(true);
+    });
+
+    // CASE E: 30-day streak, user never misses -> shield remains available
+    it('CASE E: 30-day streak user training consecutive days preserves available shield', () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      const res = storage.computeStreak(yesterdayStr, 30, false);
+      expect(res.newStreak).toBe(31);
+      expect(res.shieldWasConsumed).toBe(false); // Not consumed because no day was missed!
+    });
+
+    // CASE F: 2 or more consecutive missed days -> streak breaks
+    it('CASE F: missing 2 or more consecutive days breaks streak even with shield', () => {
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
       const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
 
-      // Even with 40-day streak, missing 2+ days cannot be protected
       const res = storage.computeStreak(threeDaysAgoStr, 40, false);
       expect(res.newStreak).toBe(1);
       expect(res.shieldWasConsumed).toBe(false);
@@ -270,6 +248,49 @@ describe('Power-Up Business Logic & Unlock Conditions', () => {
       const inv = PowerUpService.calculateInventory(consumedStats);
       expect(inv.streakShield.isUnlocked).toBe(true);
       expect(inv.streakShield.status).toBe('CONSUMED');
+    });
+  });
+
+  describe('4. PERMANENT REMOVAL VERIFICATION: HINT and RETRY Completely Removed', () => {
+    it('verifies PowerUpService does not expose canUseHint or canUseRetry methods', () => {
+      expect((PowerUpService as any).canUseHint).toBeUndefined();
+      expect((PowerUpService as any).canUseRetry).toBeUndefined();
+    });
+
+    it('verifies calculateInventory contains NO HINT and NO RETRY items', () => {
+      const fullStats: UserStats = {
+        ...baseStats,
+        currentStreak: 35,
+        completedQuestionsCount: 150,
+      };
+      const inv = PowerUpService.calculateInventory(fullStats);
+      expect(inv.items.length).toBe(2); // Only 50/50 and LEARN
+      expect(inv.items.map((i) => i.id)).toEqual(['FIFTY_FIFTY', 'LEARN']);
+      expect(inv.items.some((i) => (i.id as string) === 'HINT')).toBe(false);
+      expect(inv.items.some((i) => (i.id as string) === 'RETRY')).toBe(false);
+    });
+
+    it('verifies FeedbackDrawer has no retry prop or retry button (answers are final)', () => {
+      const el = React.createElement(FeedbackDrawer, {
+        isOpen: true,
+        evaluation: {
+          status: 'INCORRECT',
+          is_correct: false,
+          user_payload: { type: 'MCQ', selected_option: 'option_b' },
+          correct_solution_display: 'Option A',
+          explanation: 'Option A is correct.',
+          learning_objective: 'Master proper physical chestpiece grip.',
+          category: 'DEVICE_HANDLING',
+          question_id: 'Q_TEST_MCQ_02',
+          awarded_xp: 0,
+        },
+        onContinue: () => {},
+        isLastQuestion: false,
+      });
+
+      // No retry-related props allowed
+      expect((el.props as any).canRetry).toBeUndefined();
+      expect((el.props as any).onUseRetry).toBeUndefined();
     });
   });
 });
@@ -297,7 +318,6 @@ describe('Core Competency Progress Calculation', () => {
       },
     ];
 
-    // Mock getAllSessions
     vi.spyOn(storage, 'getAllSessions').mockResolvedValue(mockSessions);
 
     const competencies = await storage.getCompetencyProgress();
@@ -316,7 +336,7 @@ describe('Core Competency Progress Calculation', () => {
     const qualityAssessment = competencies.find((c) => c.area === 'QUALITY_ASSESSMENT')!;
     expect(qualityAssessment.questionsAttempted).toBe(0);
     expect(qualityAssessment.questionsCorrect).toBe(0);
-    expect(qualityAssessment.accuracyPercentage).toBe(null); // Clean "No data yet" state
+    expect(qualityAssessment.accuracyPercentage).toBe(null);
   });
 });
 
@@ -351,10 +371,9 @@ describe('UI Component Integration for Power-Ups & Profile', () => {
     version: '1.0.0',
   };
 
-  it('DailySessionScreen instantiates with power-up action callbacks', () => {
-    let hintCalled = false;
+  it('DailySessionScreen instantiates with power-up action callbacks (50/50 and LEARN)', () => {
+    let fiftyFiftyCalled = false;
     let learnCalled = false;
-    let retryCalled = false;
 
     const el = React.createElement(DailySessionScreen, {
       session: {
@@ -372,58 +391,30 @@ describe('UI Component Integration for Power-Ups & Profile', () => {
         reviewViewed: false,
         startTime: Date.now(),
         endTime: null,
-        hintEliminatedOptions: {},
+        fiftyFiftyEliminatedOptions: {},
         learnClueRevealed: {},
-        retryUsed: {},
       },
       userStats: mockStats,
       currentQuestion: sampleMCQ,
       onSetAnswer: () => {},
       onSubmitAnswer: () => {},
-      onApplyHint: () => { hintCalled = true; },
+      onApplyFiftyFifty: () => { fiftyFiftyCalled = true; },
       onApplyLearn: () => { learnCalled = true; },
-      onApplyRetry: () => { retryCalled = true; },
       onNextQuestion: () => {},
       onExitSession: () => {},
     });
 
     expect(el.props.userStats).toBeDefined();
-    expect(el.props.onApplyHint).toBeDefined();
-    el.props.onApplyHint();
-    expect(hintCalled).toBe(true);
+    expect(el.props.onApplyFiftyFifty).toBeDefined();
+    el.props.onApplyFiftyFifty();
+    expect(fiftyFiftyCalled).toBe(true);
 
     el.props.onApplyLearn();
     expect(learnCalled).toBe(true);
 
-    el.props.onApplyRetry();
-    expect(retryCalled).toBe(true);
-  });
-
-  it('FeedbackDrawer supports RETRY callback when canRetry is true and evaluation is incorrect', () => {
-    let retryTriggered = false;
-
-    const el = React.createElement(FeedbackDrawer, {
-      isOpen: true,
-      evaluation: {
-        status: 'INCORRECT',
-        is_correct: false,
-        user_payload: { type: 'MCQ', selected_option: 'option_b' },
-        correct_solution_display: 'Option A',
-        explanation: 'Option A is correct.',
-        learning_objective: 'Master proper physical chestpiece grip.',
-        category: 'DEVICE_HANDLING',
-        question_id: 'Q_TEST_MCQ_02',
-        awarded_xp: 0,
-      },
-      canRetry: true,
-      onUseRetry: () => { retryTriggered = true; },
-      onContinue: () => {},
-      isLastQuestion: false,
-    });
-
-    expect(el.props.canRetry).toBe(true);
-    el.props.onUseRetry!();
-    expect(retryTriggered).toBe(true);
+    // Assert RETRY and HINT callbacks do not exist
+    expect((el.props as any).onApplyHint).toBeUndefined();
+    expect((el.props as any).onApplyRetry).toBeUndefined();
   });
 
   it('ProfileScreen instantiates with userStats and back navigation callback', () => {
@@ -440,4 +431,3 @@ describe('UI Component Integration for Power-Ups & Profile', () => {
     expect(backTriggered).toBe(true);
   });
 });
-

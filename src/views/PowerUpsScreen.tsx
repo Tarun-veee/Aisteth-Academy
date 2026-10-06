@@ -5,9 +5,7 @@ import { Badge } from '../components/common/Badge';
 import { UserStats } from '../models/session.types';
 import { PowerUpService } from '../services/PowerUpService';
 import {
-  HelpCircle,
   Lightbulb,
-  RotateCcw,
   ShieldCheck,
   Shield,
   Check,
@@ -26,39 +24,34 @@ export const PowerUpsScreen: React.FC<PowerUpsScreenProps> = ({
 }) => {
   const powerUps = PowerUpService.calculateInventory(userStats);
 
-  // Define the 4 power-up items with friendly descriptions
+  // Exactly three official power-ups (HINT and RETRY are permanently removed)
   const tools = [
     {
-      id: 'HINT',
-      name: 'Hint',
-      iconEmoji: '💡',
-      icon: <HelpCircle className="w-5 h-5" />,
-      description: 'Get help with a question by removing 2 wrong options',
-      item: powerUps.items.find((i) => i.id === 'HINT'),
+      id: 'FIFTY_FIFTY' as const,
+      name: '50/50',
+      iconEmoji: '⚡',
+      icon: <Sparkles className="w-5 h-5" />,
+      description: 'Removes 2 incorrect options',
+      item: powerUps.items.find((i) => i.id === 'FIFTY_FIFTY'),
+      lockedLabel: `Unlock at a 20-day streak (${userStats.currentStreak || 0}/20)`,
     },
     {
-      id: 'LEARN',
+      id: 'LEARN' as const,
       name: 'Learn',
       iconEmoji: '📖',
       icon: <Lightbulb className="w-5 h-5" />,
-      description: 'See a helpful learning clue before answering',
+      description: 'Shows the learning objective',
       item: powerUps.items.find((i) => i.id === 'LEARN'),
+      lockedLabel: `Unlock after 100 answered questions (${userStats.completedQuestionsCount || 0}/100)`,
     },
     {
-      id: 'RETRY',
-      name: 'Retry',
-      iconEmoji: '↩',
-      icon: <RotateCcw className="w-5 h-5" />,
-      description: 'Try an incorrect question again',
-      item: powerUps.items.find((i) => i.id === 'RETRY'),
-    },
-    {
-      id: 'STREAK_SHIELD',
+      id: 'STREAK_SHIELD' as const,
       name: 'Streak Shield',
       iconEmoji: '🛡',
       icon: <ShieldCheck className="w-5 h-5" />,
-      description: 'Protect your learning streak if you miss a day',
+      description: 'Protects one missed day',
       item: powerUps.streakShield,
+      lockedLabel: `Unlock at a 30-day streak (${userStats.currentStreak || 0}/30)`,
     },
   ];
 
@@ -87,7 +80,7 @@ export const PowerUpsScreen: React.FC<PowerUpsScreenProps> = ({
           </div>
         </div>
 
-        {/* 4 Power-Up Cards */}
+        {/* Exactly 3 Power-Up Cards */}
         <div className="flex flex-col gap-2.5">
           {tools.map((tool) => {
             const isUnlocked = tool.item?.isUnlocked ?? false;
@@ -138,7 +131,7 @@ export const PowerUpsScreen: React.FC<PowerUpsScreenProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-content-secondary mt-0.5 leading-relaxed">
-                        {tool.description}
+                        {isUnlocked ? tool.description : tool.lockedLabel}
                       </p>
                     </div>
                   </div>

@@ -19,10 +19,13 @@ import {
   StorageRepository,
   getLocalTodayDateString
 } from '../repositories/StorageRepository';
+import { defaultSessionService, SessionService } from '../services/SessionService';
+import { defaultAuthService } from '../services/AuthService';
 
 export function useLearningSession(
   questionService: QuestionService = defaultQuestionService,
-  storageRepository: StorageRepository = defaultStorageRepository
+  storageRepository: StorageRepository = defaultStorageRepository,
+  sessionService: SessionService = defaultSessionService
 ) {
   const [session, setSession] = useState<SessionState>({
     status: 'IDLE',
@@ -39,9 +42,8 @@ export function useLearningSession(
     reviewViewed: false,
     startTime: null,
     endTime: null,
-    hintEliminatedOptions: {},
+    fiftyFiftyEliminatedOptions: {},
     learnClueRevealed: {},
-    retryUsed: {},
   });
 
   const [userStats, setUserStats] = useState<UserStats>({
@@ -87,9 +89,8 @@ export function useLearningSession(
             reviewViewed: true,
             startTime: null,
             endTime: null,
-            hintEliminatedOptions: daily.hintEliminatedOptions || {},
+            fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
             learnClueRevealed: daily.learnClueRevealed || {},
-            retryUsed: daily.retryUsed || {},
           });
         } else if (daily.status === 'QUESTIONS_COMPLETED') {
           setSession({
@@ -107,9 +108,8 @@ export function useLearningSession(
             reviewViewed: false,
             startTime: null,
             endTime: null,
-            hintEliminatedOptions: daily.hintEliminatedOptions || {},
+            fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
             learnClueRevealed: daily.learnClueRevealed || {},
-            retryUsed: daily.retryUsed || {},
           });
         } else if (daily.status === 'IN_PROGRESS') {
           setSession({
@@ -127,9 +127,8 @@ export function useLearningSession(
             reviewViewed: false,
             startTime: Date.now(),
             endTime: null,
-            hintEliminatedOptions: daily.hintEliminatedOptions || {},
+            fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
             learnClueRevealed: daily.learnClueRevealed || {},
-            retryUsed: daily.retryUsed || {},
           });
         }
       } else {
@@ -148,9 +147,8 @@ export function useLearningSession(
           reviewViewed: false,
           startTime: null,
           endTime: null,
-          hintEliminatedOptions: {},
+          fiftyFiftyEliminatedOptions: {},
           learnClueRevealed: {},
-          retryUsed: {},
         });
       }
     } finally {
@@ -164,6 +162,7 @@ export function useLearningSession(
 
   /**
    * Starts or resumes today's learning mission.
+   * Syncs with Cloud Firestore SessionService if authenticated.
    */
   const startDailySession = useCallback(
     async (count: number = SESSION_CONFIG.DEFAULT_SESSION_LENGTH) => {
@@ -190,6 +189,14 @@ export function useLearningSession(
         const sessionQuestions = await questionService.createDailySession(count, pastSessions);
         const newSessionId = `daily_${todayStr}`;
 
+        // Asynchronously initialize Firestore dailySession doc
+        const currentUid = defaultAuthService.getSession()?.userId;
+        if (currentUid) {
+          sessionService.startDailySession(currentUid, todayStr).catch((err) => {
+            console.warn('Firestore startDailySession warning:', err);
+          });
+        }
+
         const newDailyData: DailySessionData = {
           sessionId: newSessionId,
           date: todayStr,
@@ -203,9 +210,8 @@ export function useLearningSession(
           totalQuestions: sessionQuestions.length,
           totalXpEarned: 0,
           correctCount: 0,
-          hintEliminatedOptions: {},
+          fiftyFiftyEliminatedOptions: {},
           learnClueRevealed: {},
-          retryUsed: {},
         };
 
         await storageRepository.saveDailySession(newDailyData);
@@ -225,15 +231,14 @@ export function useLearningSession(
           reviewViewed: false,
           startTime: Date.now(),
           endTime: null,
-          hintEliminatedOptions: {},
+          fiftyFiftyEliminatedOptions: {},
           learnClueRevealed: {},
-          retryUsed: {},
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [questionService, storageRepository]
+    [questionService, storageRepository, sessionService]
   );
 
   /**
@@ -248,6 +253,7 @@ export function useLearningSession(
 
   /**
    * Submits the current question answer for deterministic evaluation.
+   * Trainee answers are FINAL. No retry. Writes append-only attempt record to Firestore.
    */
   const submitCurrentAnswer = useCallback(() => {
     setSession((prev) => {
@@ -257,7 +263,6 @@ export function useLearningSession(
       if (!AnswerEvaluator.isValidAnswer(currentQuestion, prev.currentAnswer)) return prev;
 
       const evaluation = AnswerEvaluator.evaluate(currentQuestion, prev.currentAnswer);
-
       const isCorrect = evaluation.is_correct;
       const xpEarned = evaluation.awarded_xp;
 
@@ -269,6 +274,30 @@ export function useLearningSession(
         timestamp: Date.now(),
       };
 
+      // Asynchronously log append-only attempt to Firestore
+      const currentUid = defaultAuthService.getSession()?.userId;
+      if (currentUid) {
+        const powerUpsActive: string[] = [];
+        if (prev.fiftyFiftyEliminatedOptions?.[prev.currentIndex]) {
+          powerUpsActive.push('FIFTY_FIFTY');
+        }
+        if (prev.learnClueRevealed?.[prev.currentIndex]) {
+          powerUpsActive.push('LEARN');
+        }
+
+        sessionService.recordAttempt(currentUid, prev.sessionId || `daily_${getLocalTodayDateString()}`, {
+          questionId: currentQuestion.question_id,
+          questionIndex: prev.currentIndex,
+          userAnswerPayload: prev.currentAnswer,
+          result: isCorrect ? 'CORRECT' : 'INCORRECT',
+          xpAwarded: xpEarned,
+          powerUpsActive,
+          isSessionComplete: prev.currentIndex >= prev.questions.length - 1,
+        }).catch((err) => {
+          console.warn('Firestore recordAttempt warning:', err);
+        });
+      }
+
       return {
         ...prev,
         status: 'ANSWER_SUBMITTED',
@@ -278,24 +307,25 @@ export function useLearningSession(
         correctCount: isCorrect ? prev.correctCount + 1 : prev.correctCount,
       };
     });
-  }, []);
+  }, [sessionService]);
 
   /**
-   * Activates HINT power-up for the current question: eliminates 2 incorrect options.
+   * Activates 50/50 power-up for current MCQ question: eliminates exactly 2 incorrect options.
+   * Only usable on MCQ questions. Unlocks at 20-day streak.
    */
-  const applyHint = useCallback(() => {
+  const applyFiftyFifty = useCallback(() => {
     setSession((prev) => {
       if (prev.status !== 'IN_PROGRESS') return prev;
       const currentQ = prev.questions[prev.currentIndex];
       if (!currentQ || currentQ.type !== 'MCQ') return prev;
 
-      const alreadyUsed = Boolean(prev.hintEliminatedOptions?.[prev.currentIndex]);
-      const check = PowerUpService.canUseHint(userStats, currentQ, alreadyUsed);
+      const alreadyUsed = Boolean(prev.fiftyFiftyEliminatedOptions?.[prev.currentIndex]);
+      const check = PowerUpService.canUseFiftyFifty(userStats, currentQ, alreadyUsed);
       if (!check.canUse) return prev;
 
       const eliminated = PowerUpService.getEliminatedOptions(currentQ as MCQQuestion);
       const updatedEliminations = {
-        ...(prev.hintEliminatedOptions || {}),
+        ...(prev.fiftyFiftyEliminatedOptions || {}),
         [prev.currentIndex]: eliminated,
       };
 
@@ -311,7 +341,7 @@ export function useLearningSession(
 
       const updatedSession: SessionState = {
         ...prev,
-        hintEliminatedOptions: updatedEliminations,
+        fiftyFiftyEliminatedOptions: updatedEliminations,
         currentAnswer: nextAnswer,
       };
 
@@ -330,9 +360,8 @@ export function useLearningSession(
         totalQuestions: prev.questions.length,
         totalXpEarned: prev.totalXpEarned,
         correctCount: prev.correctCount,
-        hintEliminatedOptions: updatedEliminations,
+        fiftyFiftyEliminatedOptions: updatedEliminations,
         learnClueRevealed: prev.learnClueRevealed,
-        retryUsed: prev.retryUsed,
       });
 
       return updatedSession;
@@ -340,7 +369,8 @@ export function useLearningSession(
   }, [userStats, storageRepository]);
 
   /**
-   * Activates LEARN power-up for current question: reveals clinical learning clue.
+   * Activates LEARN power-up for current question: reveals clinical learning objective.
+   * Unlocks after 100 answered questions.
    */
   const applyLearn = useCallback(() => {
     setSession((prev) => {
@@ -377,62 +407,8 @@ export function useLearningSession(
         totalQuestions: prev.questions.length,
         totalXpEarned: prev.totalXpEarned,
         correctCount: prev.correctCount,
-        hintEliminatedOptions: prev.hintEliminatedOptions,
+        fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
         learnClueRevealed: updatedRevealed,
-        retryUsed: prev.retryUsed,
-      });
-
-      return updatedSession;
-    });
-  }, [userStats, storageRepository]);
-
-  /**
-   * Activates RETRY power-up after an incorrect answer: allows 1 re-attempt on the same question.
-   */
-  const applyRetry = useCallback(() => {
-    setSession((prev) => {
-      if (prev.status !== 'ANSWER_SUBMITTED') return prev;
-      const isCorrect = Boolean(prev.currentEvaluation?.is_correct);
-      const alreadyUsed = Boolean(prev.retryUsed?.[prev.currentIndex]);
-
-      const check = PowerUpService.canUseRetry(userStats, true, isCorrect, alreadyUsed);
-      if (!check.canUse) return prev;
-
-      const updatedRetries = {
-        ...(prev.retryUsed || {}),
-        [prev.currentIndex]: true,
-      };
-
-      // Remove the incorrect answer attempt from history so the re-attempt replaces it
-      const updatedHistory = prev.history.slice(0, prev.currentIndex);
-
-      const updatedSession: SessionState = {
-        ...prev,
-        status: 'IN_PROGRESS',
-        currentAnswer: null,
-        currentEvaluation: null,
-        history: updatedHistory,
-        retryUsed: updatedRetries,
-      };
-
-      // Persist to daily session in background
-      const todayStr = getLocalTodayDateString();
-      storageRepository.saveDailySession({
-        sessionId: prev.sessionId,
-        date: todayStr,
-        status: 'IN_PROGRESS',
-        questionsCompleted: false,
-        reviewViewed: false,
-        currentIndex: prev.currentIndex,
-        questions: prev.questions,
-        history: updatedHistory,
-        score: prev.correctCount,
-        totalQuestions: prev.questions.length,
-        totalXpEarned: prev.totalXpEarned,
-        correctCount: prev.correctCount,
-        hintEliminatedOptions: prev.hintEliminatedOptions,
-        learnClueRevealed: prev.learnClueRevealed,
-        retryUsed: updatedRetries,
       });
 
       return updatedSession;
@@ -441,6 +417,7 @@ export function useLearningSession(
 
   /**
    * Advances to the next question or completes the session.
+   * Session contains exactly 10 questions. Finalizes daily session in Firestore.
    */
   const nextQuestion = useCallback(async () => {
     setSession((prev) => {
@@ -482,12 +459,25 @@ export function useLearningSession(
           totalQuestions: prev.questions.length,
           totalXpEarned: finalXp,
           correctCount: prev.correctCount,
-          hintEliminatedOptions: prev.hintEliminatedOptions,
+          fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
           learnClueRevealed: prev.learnClueRevealed,
-          retryUsed: prev.retryUsed,
         };
 
-        // Persist session asynchronously
+        // Asynchronously finalize Cloud Firestore dailySession & user progression
+        const currentUid = defaultAuthService.getSession()?.userId;
+        if (currentUid) {
+          sessionService.finalizeSession(
+            currentUid,
+            prev.sessionId,
+            finalXp,
+            prev.correctCount,
+            prev.questions.length
+          ).catch((err) => {
+            console.warn('Firestore finalizeSession warning:', err);
+          });
+        }
+
+        // Persist session locally
         Promise.all([
           storageRepository.saveSession(storedRecord),
           storageRepository.saveDailySession(completedDaily),
@@ -521,9 +511,8 @@ export function useLearningSession(
         totalQuestions: prev.questions.length,
         totalXpEarned: prev.totalXpEarned,
         correctCount: prev.correctCount,
-        hintEliminatedOptions: prev.hintEliminatedOptions,
+        fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
         learnClueRevealed: prev.learnClueRevealed,
-        retryUsed: prev.retryUsed,
       };
 
       storageRepository.saveDailySession(progressDaily);
@@ -537,7 +526,7 @@ export function useLearningSession(
         currentEvaluation: null,
       };
     });
-  }, [storageRepository, refreshUserStats]);
+  }, [storageRepository, refreshUserStats, sessionService]);
 
   /**
    * Marks session review as viewed and locks today's session.
@@ -558,9 +547,8 @@ export function useLearningSession(
         totalQuestions: prev.questions.length,
         totalXpEarned: prev.totalXpEarned,
         correctCount: prev.correctCount,
-        hintEliminatedOptions: prev.hintEliminatedOptions,
+        fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
         learnClueRevealed: prev.learnClueRevealed,
-        retryUsed: prev.retryUsed,
       };
 
       storageRepository.saveDailySession(finishedDaily);
@@ -588,9 +576,8 @@ export function useLearningSession(
     startDailySession,
     setAnswer,
     submitCurrentAnswer,
-    applyHint,
+    applyFiftyFifty,
     applyLearn,
-    applyRetry,
     nextQuestion,
     markReviewViewed,
     refreshUserStats,

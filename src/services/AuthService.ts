@@ -22,7 +22,8 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { UserProfile, DEFAULT_USER_PROFILE } from '../models/user.types';
+import { UserProfile, DEFAULT_USER_PROFILE, DEFAULT_USER_STATS } from '../models/user.types';
+import { UserStats } from '../models/session.types';
 import {
   AuthSession,
   AuthResult,
@@ -198,6 +199,20 @@ export class AuthService {
             email: data.optionalEmail || user.email || undefined,
             createdAt: data.createdAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
           };
+
+          // Hydrate Cloud Firestore learningState into local UserStats cache
+          const cloudLearning = data.learningState || {};
+          const hydratedStats: UserStats = {
+            totalXp: cloudLearning.totalXp ?? 0,
+            currentStreak: cloudLearning.currentStreak ?? 0,
+            longestStreak: cloudLearning.longestStreak ?? cloudLearning.currentStreak ?? 0,
+            lastActiveDate: cloudLearning.lastActiveDate ?? null,
+            completedQuestionsCount: cloudLearning.completedQuestionsCount ?? 0,
+            completedSessionsCount: cloudLearning.completedSessionsCount ?? 0,
+            totalCorrectAnswersCount: cloudLearning.totalCorrectAnswersCount ?? 0,
+            streakShieldConsumed: cloudLearning.streakShieldConsumed ?? false,
+          };
+          await this.storageRepository.saveUserStats(hydratedStats);
         }
       } catch (firestoreErr) {
         console.warn('Firestore profile fetch warning:', firestoreErr);
@@ -351,6 +366,7 @@ export class AuthService {
       };
 
       await this.storageRepository.saveUserProfile(newProfile);
+      await this.storageRepository.saveUserStats(DEFAULT_USER_STATS);
 
       const session: AuthSession = {
         userId: uid,

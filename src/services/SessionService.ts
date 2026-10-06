@@ -1,8 +1,10 @@
 /**
  * AiSteth Academy — Client Session & Progression Service
- * Specification: v2.7.0-SPARK-SPEC
+ * Specification: Frozen Three-Power-Up System & Client-Authoritative Daily Session Lifecycle
  *
- * Client-Authoritative Daily Session Lifecycle & Append-Only Attempt Logger
+ * Append-only attempt logger and daily session lifecycle service.
+ * Active power-ups: 50/50, LEARN, STREAK SHIELD.
+ * HINT and RETRY are permanently removed.
  */
 
 import {
@@ -11,7 +13,8 @@ import {
   setDoc,
   updateDoc,
   serverTimestamp,
-  increment
+  increment,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
 import {
@@ -34,9 +37,8 @@ export interface DailySessionDoc {
   correctCount: number;
   accuracy: number;
   powerUpsUsed: {
-    HINT: string[];
+    FIFTY_FIFTY: string[];
     LEARN: string[];
-    RETRY: string[];
   };
   startedAt: any;
   createdAt: any;
@@ -55,8 +57,6 @@ export interface AttemptDoc {
   userAnswerPayload: Record<string, any>;
   result: 'CORRECT' | 'INCORRECT';
   xpAwarded: number;
-  isRetry: boolean;
-  retryOfAttemptId?: string | null;
   powerUpsActive: string[];
   clientTimestamp: number;
   createdAt: any;
@@ -64,6 +64,8 @@ export interface AttemptDoc {
 }
 
 export class SessionService {
+  private finalizingSessionIds = new Set<string>();
+
   /**
    * Starts or resumes a daily session for a user on a given local date.
    */
@@ -101,9 +103,8 @@ export class SessionService {
       correctCount: 0,
       accuracy: 0,
       powerUpsUsed: {
-        HINT: [],
+        FIFTY_FIFTY: [],
         LEARN: [],
-        RETRY: [],
       },
       startedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
@@ -121,6 +122,7 @@ export class SessionService {
 
   /**
    * Submits an append-only attempt record and updates the active session.
+   * Trainee answers are final upon submission (RETRY is permanently removed).
    */
   public async recordAttempt(
     uid: string,
@@ -131,8 +133,6 @@ export class SessionService {
       userAnswerPayload: Record<string, any>;
       result: 'CORRECT' | 'INCORRECT';
       xpAwarded: number;
-      isRetry?: boolean;
-      retryOfAttemptId?: string | null;
       powerUpsActive?: string[];
       isSessionComplete?: boolean;
     }
@@ -151,8 +151,6 @@ export class SessionService {
       userAnswerPayload: payload.userAnswerPayload,
       result: payload.result,
       xpAwarded: payload.xpAwarded,
-      isRetry: Boolean(payload.isRetry),
-      retryOfAttemptId: payload.retryOfAttemptId || null,
       powerUpsActive: payload.powerUpsActive || [],
       clientTimestamp: Date.now(),
       createdAt: serverTimestamp(),
@@ -175,8 +173,17 @@ export class SessionService {
         updatedAt: serverTimestamp(),
       };
 
-      if (payload.result === 'CORRECT' && !payload.isRetry) {
+      if (payload.result === 'CORRECT') {
         updates.correctCount = increment(1);
+      }
+
+      if (payload.powerUpsActive && payload.powerUpsActive.length > 0) {
+        if (payload.powerUpsActive.includes('FIFTY_FIFTY')) {
+          updates['powerUpsUsed.FIFTY_FIFTY'] = arrayUnion(payload.questionId);
+        }
+        if (payload.powerUpsActive.includes('LEARN')) {
+          updates['powerUpsUsed.LEARN'] = arrayUnion(payload.questionId);
+        }
       }
 
       if (payload.isSessionComplete || payload.questionIndex >= 9) {
@@ -194,42 +201,94 @@ export class SessionService {
 
   /**
    * Finalizes the daily session and increments trainee progression in Firestore.
+   * Strictly idempotent: guards against duplicate calls, double-clicks, network retries, and refresh cycles.
+   * If session is already finalized (or rules reject updating completed session), progression is not re-incremented.
    */
-  public async finalizeSession(uid: string, sessionId: string, totalXpEarned: number): Promise<void> {
-    const sessionRef = doc(db, 'users', uid, 'dailySessions', sessionId);
-    const userRef = doc(db, 'users', uid);
-
-    try {
-      await updateDoc(sessionRef, {
-        status: 'REVIEW_COMPLETED',
-        reviewViewed: true,
-        completedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    } catch (err) {
-      console.warn('Failed to finalize dailySession:', err);
+  public async finalizeSession(
+    uid: string,
+    sessionId: string,
+    totalXpEarned: number,
+    correctCount: number = 0,
+    totalQuestions: number = 10
+  ): Promise<boolean> {
+    // 1. In-memory concurrency guard: Prevent duplicate in-flight requests for same session
+    if (this.finalizingSessionIds.has(sessionId)) {
+      console.info(`[SessionService] Session ${sessionId} finalization already in-flight. Skipping duplicate call.`);
+      return false;
     }
+    this.finalizingSessionIds.add(sessionId);
 
     try {
-      const todayDateStr = getResolvedCalendarDate();
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        const currentLearningState = data.learningState || {};
-        const oldXp = currentLearningState.totalXp || 0;
-        const oldStreak = currentLearningState.currentStreak || 0;
-        const oldSessions = currentLearningState.completedSessionsCount || 0;
+      const sessionRef = doc(db, 'users', uid, 'dailySessions', sessionId);
+      const userRef = doc(db, 'users', uid);
 
-        await updateDoc(userRef, {
-          'learningState.totalXp': oldXp + Math.min(totalXpEarned, 200),
-          'learningState.currentStreak': oldStreak + 1,
-          'learningState.completedSessionsCount': oldSessions + 1,
-          'learningState.lastActiveDate': todayDateStr,
+      // 2. Pre-check: Inspect current session state in Firestore
+      try {
+        const sessionSnap = await getDoc(sessionRef);
+        if (!sessionSnap.exists()) {
+          console.warn(`[SessionService] Session ${sessionId} does not exist. Aborting finalization.`);
+          return false;
+        }
+
+        const sessionData = sessionSnap.data();
+        const terminalStatuses = ['COMPLETED', 'REVIEW_COMPLETED', 'REVIEW_VIEWED', 'QUESTIONS_COMPLETED'];
+        if (terminalStatuses.includes(sessionData?.status) || sessionData?.reviewViewed === true) {
+          console.info(`[SessionService] Session ${sessionId} is already finalized (status: ${sessionData?.status}). Skipping duplicate finalization.`);
+          return false;
+        }
+      } catch (checkErr) {
+        console.warn(`[SessionService] Error inspecting session state for ${sessionId}:`, checkErr);
+      }
+
+      // 3. Atomically transition session status to REVIEW_COMPLETED.
+      // Firestore Security Rules strictly reject this update if status is already COMPLETED / REVIEW_COMPLETED.
+      try {
+        await updateDoc(sessionRef, {
+          status: 'REVIEW_COMPLETED',
+          reviewViewed: true,
+          completedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+      } catch (err) {
+        // If Firestore rules or concurrent write rejected the update, ABORT immediately.
+        console.warn(`[SessionService] Failed or blocked transition of dailySession ${sessionId} to REVIEW_COMPLETED. Aborting progression update:`, err);
+        return false;
       }
-    } catch (err) {
-      console.warn('Failed to update user progression:', err);
+
+      // 4. Update trainee progression in users/{uid} ONLY after session transition succeeded
+      try {
+        const todayDateStr = getResolvedCalendarDate();
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          const currentLearningState = data.learningState || {};
+          const oldXp = currentLearningState.totalXp || 0;
+          const oldStreak = currentLearningState.currentStreak || 0;
+          const oldSessions = currentLearningState.completedSessionsCount || 0;
+          const oldQuestions = currentLearningState.completedQuestionsCount || 0;
+          const oldCorrect = currentLearningState.totalCorrectAnswersCount || 0;
+          const oldLongest = currentLearningState.longestStreak || 0;
+          const newStreak = oldStreak + 1;
+
+          await updateDoc(userRef, {
+            'learningState.totalXp': oldXp + Math.min(totalXpEarned, 200),
+            'learningState.currentStreak': newStreak,
+            'learningState.completedSessionsCount': oldSessions + 1,
+            'learningState.completedQuestionsCount': oldQuestions + totalQuestions,
+            'learningState.totalCorrectAnswersCount': oldCorrect + correctCount,
+            'learningState.longestStreak': Math.max(oldLongest, newStreak),
+            'learningState.lastActiveDate': todayDateStr,
+            updatedAt: serverTimestamp(),
+          });
+          return true;
+        }
+      } catch (err) {
+        console.warn('[SessionService] Failed to update user progression:', err);
+      }
+
+      return false;
+    } finally {
+      this.finalizingSessionIds.delete(sessionId);
     }
   }
 }
