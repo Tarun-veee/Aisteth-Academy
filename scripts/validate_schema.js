@@ -1,6 +1,10 @@
 /**
- * Schema Validation Test Script
- * Validates src/data/dummy_questions.json against question.schema.json using Ajv.
+ * AiSteth Academy — Question Bank Schema Validation Utility
+ *
+ * Purpose: Validates question datasets against the formal question.schema.json using Ajv.
+ * Input:   src/data/dummy_questions.json, question.schema.json
+ * Output:  CLI status message (Exit 0 on validation pass, Exit 1 with error report on failure)
+ * Usage:   npm run validate:schema  (or: node scripts/validate_schema.js)
  */
 import fs from 'fs';
 import path from 'path';

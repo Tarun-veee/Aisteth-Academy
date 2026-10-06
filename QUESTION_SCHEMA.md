@@ -2,8 +2,8 @@
 
 **Document Version:** 1.0.0  
 **Target Tracks:** Track 1 (Frontend), Track 2 (Backend/Firebase), Track 3 (AIML / MedGemma Content Pipeline)  
-**Schema File:** [`question.schema.json`](file:///c:/Users/ASUS/Downloads/work/acad/question.schema.json)  
-**Excel Template:** [`questions_template.xlsx`](file:///c:/Users/ASUS/Downloads/work/acad/questions_template.xlsx)
+**Schema File:** [`question.schema.json`](./question.schema.json)  
+**Excel Template:** [`questions_template.xlsx`](./questions_template.xlsx)
 
 ---
 

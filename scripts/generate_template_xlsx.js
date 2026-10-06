@@ -1,5 +1,10 @@
 /**
- * Script to generate questions_template.xlsx with proper column structure, styling, and guidelines.
+ * AiSteth Academy — Questionnaire Excel Template Generator
+ *
+ * Purpose: Generates the authoritative questions_template.xlsx spreadsheet with schema columns, styling, and authoring guidelines.
+ * Input:   Internal schema definition (MCQ, True/False, Image Tap, Step Order, Audio Discrimination)
+ * Output:  questions_template.xlsx in repository root
+ * Usage:   npm run generate:xlsx  (or: node scripts/generate_template_xlsx.js)
  */
 import ExcelJS from 'exceljs';
 import path from 'path';

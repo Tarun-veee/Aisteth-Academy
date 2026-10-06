@@ -5,6 +5,21 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('firebase-admin', () => {
+  return {
+    default: {
+      firestore: Object.assign(vi.fn(), {
+        FieldValue: { serverTimestamp: vi.fn(() => 'MOCK_TIMESTAMP') },
+      }),
+      auth: vi.fn(),
+    },
+    firestore: Object.assign(vi.fn(), {
+      FieldValue: { serverTimestamp: vi.fn(() => 'MOCK_TIMESTAMP') },
+    }),
+    auth: vi.fn(),
+  };
+});
 import {
   normalizeUsername,
   generateSyntheticEmail,

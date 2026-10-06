@@ -4,7 +4,12 @@
 **Architecture Model:** Cloud-First / Server-Authoritative  
 **Hosting & Cloud Infrastructure:** Firebase Hosting (Frontend PWA) + Google Firebase Cloud Services (Auth, Firestore, Functions)  
 **Content Source of Truth:** `AI_limitation.json` (Release `rel_v1_0_0` — 20 MCQs for AI Limitation Module)  
-**Specification Status:** Approved Production Implementation Roadmap  
+**Specification Status:** Historical Proposal (Deferred Blaze Architecture)
+
+> [!NOTE]
+> **Historical Planning Document / Deferred Blaze Architecture**:
+> This document records the initial Phase 2.1 design proposal for a server-authoritative backend with Cloud Functions and Firebase Storage under the Blaze pay-as-you-go plan.
+> The **active production architecture** has transitioned to the **Firebase Spark Free Tier (Client-Authoritative with Firestore Security Rules)**, as detailed in [`AISTETH_ACADEMY_COMPLETE_TECHNICAL_REPORT.md`](AISTETH_ACADEMY_COMPLETE_TECHNICAL_REPORT.md).
 
 ---
 
@@ -108,7 +113,7 @@ PHASE 2.18 ─► Final Production Deployment (aisteth-academy-prod)
 ---
 
 ### PHASE 2.5: `AI_limitation.json` Questionnaire Audit & Validation
-- **Status**: **COMPLETED & VERIFIED** (See [`QUESTIONNAIRE_CONTENT_AUDIT.md`](file:///c:/Users/ASUS/Downloads/work/acad/QUESTIONNAIRE_CONTENT_AUDIT.md)).
+- **Status**: **COMPLETED & VERIFIED** (See [`QUESTIONNAIRE_CONTENT_AUDIT.md`](../QUESTIONNAIRE_CONTENT_AUDIT.md)).
 - **Scope**: Audit all 20 clinical questions in `AI_limitation.json` across 25 structural dimensions. Document mapping from raw JSON to canonical Firestore question documents.
 
 ---

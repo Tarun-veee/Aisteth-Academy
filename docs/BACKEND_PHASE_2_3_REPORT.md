@@ -3,9 +3,14 @@
 **Report ID:** `BACKEND_PHASE_2_3_REPORT`  
 **Phase:** Phase 2.3 — Firestore Schema & Security Rules Deployment  
 **Target Environment:** Development Firebase Project Only (`aisteth-academy-dev`)  
-**Specification Baseline:** `v2.6.1-PROD-SPEC` ([`DATABASE_SCHEMA.md`](file:///c:/Users/ASUS/Downloads/work/acad/DATABASE_SCHEMA.md))  
+**Specification Baseline:** `v2.6.1-PROD-SPEC` ([`DATABASE_SCHEMA.md`](../DATABASE_SCHEMA.md))  
 **Date of Execution:** 2026-09-30  
-**Phase Status:** **PHASE 2.3 STATUS: COMPLETE & HARDENED (Awaiting Authenticated Deployment)**  
+**Phase Status:** **HISTORICAL ARCHIVE (Phase 2.3 Rules Deployment Baseline)**
+
+> [!NOTE]
+> **Historical Phase Report**:
+> This report documents the Phase 2.3 Firestore schema and security rules deployment baseline.
+> These security rules have since evolved into the v2.7.0 Spark specification as documented in [`AISTETH_ACADEMY_COMPLETE_TECHNICAL_REPORT.md`](AISTETH_ACADEMY_COMPLETE_TECHNICAL_REPORT.md).
 
 ---
 
@@ -41,7 +46,7 @@ The security model on `/users/{uid}` enforces a strict allow-list for client upd
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Firestore Rule Implementation ([`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L56-L70)):
+### Firestore Rule Implementation ([`firestore.rules`](../firestore.rules#L56-L70)):
 ```javascript
 function isTraineeProfileUpdateValid() {
   let diff = request.resource.data.diff(resource.data);
@@ -109,7 +114,7 @@ match /auditLogs/{auditId} {
 
 ## 6. Composite Index Audit & Validation Matrix
 
-Every composite index defined in [`firestore.indexes.json`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.indexes.json) has been verified against planned application queries:
+Every composite index defined in [`firestore.indexes.json`](../firestore.indexes.json) has been verified against planned application queries:
 
 | Index # | Target Collection | Query Scope | Fields & Order | Planned Application Query |
 | :---: | :--- | :---: | :--- | :--- |

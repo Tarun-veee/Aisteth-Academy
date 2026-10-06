@@ -1,6 +1,10 @@
 /**
- * Generates local demo PCM WAV files for offline audio discrimination training.
- * Creates rhythmic lub-dub pulses (Clear S1/S2) and noisy/friction artifact audio.
+ * AiSteth Academy — Demo Audio Asset Generator
+ *
+ * Purpose: Generates synthetic PCM audio files for offline acoustic discrimination questions (lub-dub S1/S2 heartbeats and noise artifacts).
+ * Input:   Algorithmic audio oscillators (sine waves with decaying envelopes and noise simulation)
+ * Output:  public/assets/audio/demo_clear_normal_s1s2.mp3, demo_noisy_recording.mp3, demo_faint_recording.mp3
+ * Usage:   node scripts/generate_demo_audio.js
  */
 import fs from 'fs';
 import path from 'path';

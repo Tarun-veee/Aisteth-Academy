@@ -1,41 +1,52 @@
-# Logs
-logs
-*.log
+# ==============================================================================
+# AiSteth Academy — Git Ignore Rules
+# ==============================================================================
+
+# Node dependencies & package manager caches
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Production build outputs
+dist/
+dist-ssr/
+
+# Test coverage & reports
+coverage/
+.vitest/
+
+# Logs & debugging
+logs/
+*.log
 firebase-debug.log*
 firestore-debug.log*
 ui-debug.log*
 
-# Node dependencies
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# Editor & OS directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Environment & Credentials (NEVER COMMIT SERVER SECRETS)
-.env.local
-.env.*.local
+# Environment & Credentials (NEVER COMMIT SERVER SECRETS OR PRIVATE KEYS)
+.env
+.env.*
+!.env.example
 *.serviceAccountKey.json
 *firebase-adminsdk*.json
 service-account*.json
 secrets/
 
-# Firebase emulators & build artifacts
+# Firebase local & build artifacts
 functions/lib/
 functions/node_modules/
 .firebase/

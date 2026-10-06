@@ -1,29 +1,43 @@
 /**
- * AiSteth Academy — Content & Global App Config Seeding Script
+ * AiSteth Academy — Cloud Firestore Content Seeding Script
  * Specification: v2.7.0-SPARK-SPEC
  *
- * Seeds strictly the 20 real questions from AI_limitation.json into:
- * - /contentReleases/rel_v1_0_0
- * - /contentReleases/rel_v1_0_0/questions/{Question_ID}
- * - /appConfig/global
+ * Purpose: Ingests the authoritative 20-question clinical questionnaire from AI_limitation.json
+ *          into Cloud Firestore (/contentReleases/rel_v1_0_0 and subcollections) and initializes /appConfig/global.
+ * Input:   AI_limitation.json (authoritative Module 1 questionnaire)
+ * Output:  /contentReleases/rel_v1_0_0, /contentReleases/rel_v1_0_0/questions/{id}, /appConfig/global
+ * Usage:   npm run seed:content  (or: node scripts/seed_content.js)
+ * Note:    Requires Google Cloud Application Default Credentials (ADC) or service account credentials.
  */
 
 import fs from 'fs';
 import path from 'path';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-// Initialize Admin SDK with Project ID
-if (getApps().length === 0) {
-  initializeApp({
-    projectId: 'aisteth-academy-dev'
-  });
-}
-
-const db = getFirestore();
+const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'aisteth-academy-dev';
 
 async function seedContent() {
-  console.log('Starting content seeding for aisteth-academy-dev...');
+  console.log(`Starting content seeding for ${projectId}...`);
+
+  let initializeApp, getApps, getFirestore, FieldValue;
+  try {
+    const appModule = await import('firebase-admin/app');
+    const firestoreModule = await import('firebase-admin/firestore');
+    initializeApp = appModule.initializeApp;
+    getApps = appModule.getApps;
+    getFirestore = firestoreModule.getFirestore;
+    FieldValue = firestoreModule.FieldValue;
+  } catch (err) {
+    console.error('Content seeding requires firebase-admin to be installed for administrative database writes.');
+    console.error('Install via: npm install -D firebase-admin');
+    process.exit(1);
+  }
+
+  // Initialize Admin SDK with Project ID
+  if (getApps().length === 0) {
+    initializeApp({ projectId });
+  }
+
+  const db = getFirestore();
 
   // 1. Read AI_limitation.json
   const rawData = fs.readFileSync(path.resolve('AI_limitation.json'), 'utf-8');

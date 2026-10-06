@@ -5,7 +5,12 @@
 **Architecture Specification Baseline:** `v2.6.0-PROD-SPEC` (`DATABASE_SCHEMA.md`)  
 **Target Environment:** Dedicated Development Firebase Project (`aisteth-academy-dev`)  
 **Date of Verification:** 2026-09-30  
-**Phase Status:** **PHASE 2.1 STATUS: COMPLETE**  
+**Phase Status:** **HISTORICAL ARCHIVE (Phase 2.1 Cloud Setup Baseline)**
+
+> [!NOTE]
+> **Historical Phase Report**:
+> This report documents the initial setup of the Firebase cloud development project during Phase 2.1 (which included preliminary Vercel and Storage configuration).
+> The **current production architecture** operates on Firebase Hosting and the Firebase Spark Free Tier without Storage, as detailed in [`AISTETH_ACADEMY_COMPLETE_TECHNICAL_REPORT.md`](AISTETH_ACADEMY_COMPLETE_TECHNICAL_REPORT.md).
 
 ---
 
@@ -23,17 +28,17 @@ In accordance with product architectural decisions:
 
 | File | Purpose | Verification Status |
 | :--- | :--- | :---: |
-| [`.firebaserc`](file:///c:/Users/ASUS/Downloads/work/acad/.firebaserc) | Multi-environment alias mapping (`default`/`development`, `staging`, `production`) | **VERIFIED** |
-| [`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json) | Clean cloud rules, indexes, and Functions codebase configuration | **VERIFIED** |
-| [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules) | v2.6.0 server-authoritative rules (read-only sessions/attempts for trainees; zero client writes) | **VERIFIED** |
-| [`firestore.indexes.json`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.indexes.json) | Composite query indexes for `attempts`, `dailySessions`, and `users` | **VERIFIED** |
-| [`storage.rules`](file:///c:/Users/ASUS/Downloads/work/acad/storage.rules) | Storage security rules for `/content-releases/**` audio/diagram assets | **VERIFIED** |
-| [`functions/`](file:///c:/Users/ASUS/Downloads/work/acad/functions/) | Node 20 / TypeScript skeleton (`package.json`, `tsconfig.json`, `src/index.ts`) | **VERIFIED (`tsc` build PASS)** |
-| [`.env.example`](file:///c:/Users/ASUS/Downloads/work/acad/.env.example) | Client configuration template for direct Firebase Cloud connection | **VERIFIED** |
-| [`.env.development`](file:///c:/Users/ASUS/Downloads/work/acad/.env.development) | Active development environment variables pointing to `aisteth-academy-dev` | **VERIFIED** |
-| [`.gitignore`](file:///c:/Users/ASUS/Downloads/work/acad/.gitignore) | Protects service account keys (`*.serviceAccountKey.json`, `*firebase-adminsdk*.json`) & logs | **VERIFIED** |
-| [`docs/FIREBASE_ENVIRONMENT.md`](file:///c:/Users/ASUS/Downloads/work/acad/docs/FIREBASE_ENVIRONMENT.md) | Comprehensive cloud environment and Vercel deployment manual | **VERIFIED** |
-| [`QUESTIONNAIRE_CONTENT_AUDIT.md`](file:///c:/Users/ASUS/Downloads/work/acad/QUESTIONNAIRE_CONTENT_AUDIT.md) | Comprehensive 25-point audit of `AI_limitation.json` | **VERIFIED** |
+| [`.firebaserc`](../.firebaserc) | Multi-environment alias mapping (`default`/`development`, `staging`, `production`) | **VERIFIED** |
+| [`firebase.json`](../firebase.json) | Clean cloud rules, indexes, and Functions codebase configuration | **VERIFIED** |
+| [`firestore.rules`](../firestore.rules) | v2.6.0 server-authoritative rules (read-only sessions/attempts for trainees; zero client writes) | **VERIFIED** |
+| [`firestore.indexes.json`](../firestore.indexes.json) | Composite query indexes for `attempts`, `dailySessions`, and `users` | **VERIFIED** |
+| [`storage.rules`](../storage.rules) | Storage security rules for `/content-releases/**` audio/diagram assets | **VERIFIED** |
+| [`functions/`](../functions/) | Node 20 / TypeScript skeleton (`package.json`, `tsconfig.json`, `src/index.ts`) | **VERIFIED (`tsc` build PASS)** |
+| [`.env.example`](../.env.example) | Client configuration template for direct Firebase Cloud connection | **VERIFIED** |
+| [`.env.development`](../.env.development) | Active development environment variables pointing to `aisteth-academy-dev` | **VERIFIED** |
+| [`.gitignore`](../.gitignore) | Protects service account keys (`*.serviceAccountKey.json`, `*firebase-adminsdk*.json`) & logs | **VERIFIED** |
+| [`docs/FIREBASE_ENVIRONMENT.md`](./FIREBASE_ENVIRONMENT.md) | Comprehensive cloud environment and Vercel deployment manual | **VERIFIED** |
+| [`QUESTIONNAIRE_CONTENT_AUDIT.md`](../QUESTIONNAIRE_CONTENT_AUDIT.md) | Comprehensive 25-point audit of `AI_limitation.json` | **VERIFIED** |
 
 ---
 

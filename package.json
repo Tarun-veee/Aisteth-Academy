@@ -8,6 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "validate:schema": "node scripts/validate_schema.js",
+    "seed:content": "node scripts/seed_content.js",
     "generate:xlsx": "node scripts/generate_template_xlsx.js"
   },
   "dependencies": {

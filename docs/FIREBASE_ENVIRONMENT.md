@@ -75,8 +75,8 @@ Client-side environment variables in Vite are prefixed with `VITE_` and injected
 
 ### 3.2 Environment Files
 
-- [`.env.example`](file:///c:/Users/ASUS/Downloads/work/acad/.env.example): Committed template documenting all supported environment keys and safe defaults.
-- [`.env.development`](file:///c:/Users/ASUS/Downloads/work/acad/.env.development): Committed development configuration pointing to `aisteth-academy-dev`.
+- [`.env.example`](../.env.example): Committed template documenting all supported environment keys and safe defaults.
+- [`.env.development`](../.env.development): Committed development configuration pointing to `aisteth-academy-dev`.
 - `.env.local`: **Ignored by Git**. Used by developers for machine-specific overrides.
 - **Firebase Hosting Deployment**: Deployed directly via `firebase deploy --only hosting --project <project-id>`.
 
@@ -93,7 +93,7 @@ Client-side environment variables in Vite are prefixed with `VITE_` and injected
 > - **Firebase App Check Secret Keys**.
 > - **Firebase CI/CD deployment tokens** (`FIREBASE_TOKEN`).
 
-These exclusions are strictly enforced in [`.gitignore`](file:///c:/Users/ASUS/Downloads/work/acad/.gitignore).
+These exclusions are strictly enforced in [`.gitignore`](../.gitignore).
 
 ### 4.2 Client-Safe vs Server-Only Credentials
 

@@ -1,5 +1,10 @@
 /**
- * Generate solid PNG icons for PWA manifest.
+ * AiSteth Academy — PWA Vector Icon Generator
+ *
+ * Purpose: Generates the vector icon SVG for PWA manifest and mobile browser installations.
+ * Input:   SVG markup with AiSteth brand tokens
+ * Output:  public/icon.svg
+ * Usage:   node scripts/generate_icons.js
  */
 import fs from 'fs';
 import path from 'path';

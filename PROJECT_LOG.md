@@ -989,10 +989,10 @@ In accordance with strict Phase 2.1 boundaries:
 2. **Removal of Local Emulator Architecture**: Local Emulator Suite, localhost endpoints, and emulator toggles (`VITE_USE_FIREBASE_EMULATOR`) have been **completely removed** from architecture, code, and documentation.
 3. **Vercel Hosting Topology**: React / Vite PWA hosted on Vercel connecting directly to Firebase Cloud projects for Dev, Staging, and Production.
 4. **Authoritative Product Questionnaire (`AI_limitation.json`)**: Added actual clinical training questionnaire containing 20 Module 1 questions (10 Primary `-TH` and 10 Follow-Up `-PR` MCQs) with MedGemma curriculum metadata.
-5. **Questionnaire Audit Completed**: Authored [`QUESTIONNAIRE_CONTENT_AUDIT.md`](file:///c:/Users/ASUS/Downloads/work/acad/QUESTIONNAIRE_CONTENT_AUDIT.md) auditing all 25 structural and content dimensions.
+5. **Questionnaire Audit Completed**: Authored [`QUESTIONNAIRE_CONTENT_AUDIT.md`](./QUESTIONNAIRE_CONTENT_AUDIT.md) auditing all 25 structural and content dimensions.
 6. **IndexedDB Role Reclassification**: Classified existing IndexedDB stores (`daily_sessions` $\rightarrow$ optional local UI render cache only; `user_stats` and `user_profile` $\rightarrow$ migrate to server-authoritative Firestore; `session_records` $\rightarrow$ removed). Zero offline synchronization engines, outboxes, or conflict resolvers will be built.
-7. **Eighteen-Phase Roadmap**: Updated [`BACKEND_IMPLEMENTATION_PLAN.md`](file:///c:/Users/ASUS/Downloads/work/acad/BACKEND_IMPLEMENTATION_PLAN.md) to `v2.6.0-PROD-PLAN` (Phases 2.1 through 2.18).
-8. **Specification Update**: Updated [`DATABASE_SCHEMA.md`](file:///c:/Users/ASUS/Downloads/work/acad/DATABASE_SCHEMA.md) to `v2.6.0-PROD-SPEC`.
+7. **Eighteen-Phase Roadmap**: Updated [`BACKEND_IMPLEMENTATION_PLAN.md`](./BACKEND_IMPLEMENTATION_PLAN.md) to `v2.6.0-PROD-PLAN` (Phases 2.1 through 2.18).
+8. **Specification Update**: Updated [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md) to `v2.6.0-PROD-SPEC`.
 9. **Build & Test Status**: All 110 automated tests continue passing; production build verified cleanly.
 
 ---

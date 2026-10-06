@@ -51,9 +51,9 @@
 The core educational mechanism is structured as a daily micro-learning habit: **one 10-question mission per calendar day**, resolved strictly in the `Asia/Kolkata` timezone (UTC+05:30). Each question provides active tactile learning with immediate micro-learning feedback, clinical takeaways, and diagnostic actions upon submission.
 
 The platform has transitioned to a **Firebase Spark Plan (Free Tier — ₹0/month)** architecture. The production topology consists of:
-1. **Frontend Hosting**: Static SPA and PWA service worker hosted on **Firebase Hosting** ([`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json)).
+1. **Frontend Hosting**: Static SPA and PWA service worker hosted on **Firebase Hosting** ([`firebase.json`](../firebase.json)).
 2. **Authentication**: Client-side **Firebase Authentication** using email/password authentication backed by synthetic internal email translation (`<username>@trainee.aisteth.internal`).
-3. **Database**: **Cloud Firestore** for user profiles, immutable versioned content releases, daily session tracking, and append-only attempt logs, bounded by hardened Cloud Firestore Security Rules ([`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules)).
+3. **Database**: **Cloud Firestore** for user profiles, immutable versioned content releases, daily session tracking, and append-only attempt logs, bounded by hardened Cloud Firestore Security Rules ([`firestore.rules`](../firestore.rules)).
 
 All 152 automated tests in the test suite pass across 13 test files (`npm test`), and the production build compiles with zero TypeScript or lint errors (`npm run build`).
 
@@ -116,48 +116,48 @@ All 152 automated tests in the test suite pass across 13 test files (`npm test`)
 #### Phase 1 — Initial Frontend & Product Foundation (2026-09-29)
 * **What Changed**: Initial React 18 + TypeScript codebase created with TailwindCSS tokens, 5 polymorphic question renderers (`MCQ`, `TRUE_FALSE`, `IMAGE_TAP`, `STEP_ORDER`, `AUDIO_DISCRIMINATION`), and pure deterministic `AnswerEvaluator`.
 * **Why**: Established core interactive mechanics for digital auscultation training.
-* **Files Affected**: [`src/components/questions/QuestionRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/QuestionRenderer.tsx), [`src/services/AnswerEvaluator.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AnswerEvaluator.ts).
+* **Files Affected**: [`src/components/questions/QuestionRenderer.tsx`](../src/components/questions/QuestionRenderer.tsx), [`src/services/AnswerEvaluator.ts`](../src/services/AnswerEvaluator.ts).
 * **Verification**: Vitest unit test suite passing.
 
 #### Phase 1 Polish & Mobile Viewport Shell (2026-09-29)
-* **What Changed**: Replaced artificial bottom padding (`pb-28`) and unbounded `min-h-screen` with a **3-Tier Bounded Mobile Shell** (`h-dvh max-h-dvh overflow-hidden`). Implemented the **2-State Native Bottom Sheet** (`COLLAPSED` at ~48dvh vs. `EXPANDED` at ~86dvh) in [`src/hooks/useBottomSheetGesture.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useBottomSheetGesture.ts).
+* **What Changed**: Replaced artificial bottom padding (`pb-28`) and unbounded `min-h-screen` with a **3-Tier Bounded Mobile Shell** (`h-dvh max-h-dvh overflow-hidden`). Implemented the **2-State Native Bottom Sheet** (`COLLAPSED` at ~48dvh vs. `EXPANDED` at ~86dvh) in [`src/hooks/useBottomSheetGesture.ts`](../src/hooks/useBottomSheetGesture.ts).
 * **Why**: On Android devices (360×800), standard questions had button clipping against the Android system navigation bar, and fixed feedback drawers covered question prompts upon submission.
-* **Files Affected**: [`src/layouts/MobileContainer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/layouts/MobileContainer.tsx), [`src/views/DailySessionScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/DailySessionScreen.tsx), [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/FeedbackDrawer.tsx).
-* **Verification**: Layout contract tests in [`tests/MobileLayoutAndResponsiveness.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/MobileLayoutAndResponsiveness.test.ts).
+* **Files Affected**: [`src/layouts/MobileContainer.tsx`](../src/layouts/MobileContainer.tsx), [`src/views/DailySessionScreen.tsx`](../src/views/DailySessionScreen.tsx), [`src/components/feedback/FeedbackDrawer.tsx`](../src/components/feedback/FeedbackDrawer.tsx).
+* **Verification**: Layout contract tests in [`tests/MobileLayoutAndResponsiveness.test.ts`](../tests/MobileLayoutAndResponsiveness.test.ts).
 
 #### UI/UX Redesign & ASHA Simplification (2026-09-29)
-* **What Changed**: Removed complex academic competency dashboards and fractional formulas from `ProfileScreen.tsx`. Separated Power-Ups into a dedicated standalone view ([`src/views/PowerUpsScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/PowerUpsScreen.tsx)). Reduced header to a clean 4-action cluster (`Streak`, `Points`, `Power-Ups`, `Profile`). Integrated Indian States & dependent District selector dataset ([`src/data/indiaLocations.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/data/indiaLocations.ts)).
+* **What Changed**: Removed complex academic competency dashboards and fractional formulas from `ProfileScreen.tsx`. Separated Power-Ups into a dedicated standalone view ([`src/views/PowerUpsScreen.tsx`](../src/views/PowerUpsScreen.tsx)). Reduced header to a clean 4-action cluster (`Streak`, `Points`, `Power-Ups`, `Profile`). Integrated Indian States & dependent District selector dataset ([`src/data/indiaLocations.ts`](../src/data/indiaLocations.ts)).
 * **Why**: Addressed cognitive load for rural healthcare workers with 8th–10th grade education levels.
-* **Files Affected**: [`src/views/ProfileScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/ProfileScreen.tsx), [`src/components/common/Header.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/common/Header.tsx), [`src/views/SignUpScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/SignUpScreen.tsx).
+* **Files Affected**: [`src/views/ProfileScreen.tsx`](../src/views/ProfileScreen.tsx), [`src/components/common/Header.tsx`](../src/components/common/Header.tsx), [`src/views/SignUpScreen.tsx`](../src/views/SignUpScreen.tsx).
 * **Verification**: 110 automated tests passing.
 
 #### Phase 2.1 — Cloud Architecture & Environment Setup (2026-09-30)
-* **What Changed**: Multi-project configuration created ([`.firebaserc`](file:///c:/Users/ASUS/Downloads/work/acad/.firebaserc)) for `aisteth-academy-dev`, `aisteth-academy-staging`, and `aisteth-academy-prod`. Established environment variables and developer guidelines in [`docs/FIREBASE_ENVIRONMENT.md`](file:///c:/Users/ASUS/Downloads/work/acad/docs/FIREBASE_ENVIRONMENT.md).
+* **What Changed**: Multi-project configuration created ([`.firebaserc`](../.firebaserc)) for `aisteth-academy-dev`, `aisteth-academy-staging`, and `aisteth-academy-prod`. Established environment variables and developer guidelines in [`docs/FIREBASE_ENVIRONMENT.md`](./FIREBASE_ENVIRONMENT.md).
 * **Why**: Setup isolated cloud environments without local emulator dependencies.
 * **Verification**: Build verified cleanly.
 
 #### Phase 2.2 — Server Registration & Idempotent Workflow (2026-09-30)
-* **What Changed**: Implemented the server-authoritative 5-step registration workflow with `reservationId` ownership tokens in [`functions/src/services/registrationService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/functions/src/services/registrationService.ts). Defined day-parity deterministic Set A/Set B selection logic.
+* **What Changed**: Implemented the server-authoritative 5-step registration workflow with `reservationId` ownership tokens in [`functions/src/services/registrationService.ts`](../functions/src/services/registrationService.ts). Defined day-parity deterministic Set A/Set B selection logic.
 * **Why**: Ensured atomic username reservations and concurrency protection on backend.
-* **Files Affected**: [`functions/src/services/registrationService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/functions/src/services/registrationService.ts), [`functions/src/utils/sessionSelection.ts`](file:///c:/Users/ASUS/Downloads/work/acad/functions/src/utils/sessionSelection.ts).
-* **Verification**: 26 unit & integration tests in [`tests/BackendRegistrationAndAuth.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/BackendRegistrationAndAuth.test.ts).
+* **Files Affected**: [`functions/src/services/registrationService.ts`](../functions/src/services/registrationService.ts), [`functions/src/utils/sessionSelection.ts`](../functions/src/utils/sessionSelection.ts).
+* **Verification**: 26 unit & integration tests in [`tests/BackendRegistrationAndAuth.test.ts`](../tests/BackendRegistrationAndAuth.test.ts).
 
 #### Phase 2.3 — Firestore Schema & Security Rules Deployment (2026-09-30)
-* **What Changed**: Authored declarative Firestore security rules with profile update allow-lists, composite query indexes, and tenant isolation in [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules).
+* **What Changed**: Authored declarative Firestore security rules with profile update allow-lists, composite query indexes, and tenant isolation in [`firestore.rules`](../firestore.rules).
 * **Why**: Guarded against unauthorized field manipulation and timestamp forgery.
-* **Files Affected**: [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules), [`firestore.indexes.json`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.indexes.json).
-* **Verification**: 34 security policy assertion tests in [`tests/FirestoreSecurityRulesIntegration.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/FirestoreSecurityRulesIntegration.test.ts).
+* **Files Affected**: [`firestore.rules`](../firestore.rules), [`firestore.indexes.json`](../firestore.indexes.json).
+* **Verification**: 34 security policy assertion tests in [`tests/FirestoreSecurityRulesIntegration.test.ts`](../tests/FirestoreSecurityRulesIntegration.test.ts).
 
 #### Spark Plan Architecture Transition (v2.7.0-SPARK-SPEC) (2026-09-30)
 * **What Changed**:
-  * Cloud Functions were excluded from the active deployment build in [`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json) to eliminate GCP billing/credit card requirements (Spark Plan zero-cost compliance).
-  * Direct client Firebase Web SDK service created in [`src/services/firebase.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/firebase.ts).
-  * Client registration workflow with compensating Auth-user cleanup implemented in [`src/services/AuthService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AuthService.ts).
-  * Client session generator and append-only attempt logger implemented in [`src/services/SessionService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/SessionService.ts).
-  * Firestore question repository implemented in [`src/repositories/FirestoreQuestionRepository.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/repositories/FirestoreQuestionRepository.ts).
-  * Hardened [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules) to enforce client-authoritative write constraints ($0 \le \Delta\text{totalXp} \le 200$, $0 \le \Delta\text{currentStreak} \le 1$, session size = 10, completed session locking).
+  * Cloud Functions were excluded from the active deployment build in [`firebase.json`](../firebase.json) to eliminate GCP billing/credit card requirements (Spark Plan zero-cost compliance).
+  * Direct client Firebase Web SDK service created in [`src/services/firebase.ts`](../src/services/firebase.ts).
+  * Client registration workflow with compensating Auth-user cleanup implemented in [`src/services/AuthService.ts`](../src/services/AuthService.ts).
+  * Client session generator and append-only attempt logger implemented in [`src/services/SessionService.ts`](../src/services/SessionService.ts).
+  * Firestore question repository implemented in [`src/repositories/FirestoreQuestionRepository.ts`](../src/repositories/FirestoreQuestionRepository.ts).
+  * Hardened [`firestore.rules`](../firestore.rules) to enforce client-authoritative write constraints ($0 \le \Delta\text{totalXp} \le 200$, $0 \le \Delta\text{currentStreak} \le 1$, session size = 10, completed session locking).
 * **Why**: Hard requirement to keep the project on the Firebase Spark tier without requiring billing accounts, credit cards, or Blaze upgrades.
-* **Files Affected**: [`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json), [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules), [`src/services/AuthService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AuthService.ts), [`src/services/SessionService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/SessionService.ts), [`src/repositories/FirestoreQuestionRepository.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/repositories/FirestoreQuestionRepository.ts), [`tests/FirestoreSecurityRulesIntegration.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/FirestoreSecurityRulesIntegration.test.ts).
+* **Files Affected**: [`firebase.json`](../firebase.json), [`firestore.rules`](../firestore.rules), [`src/services/AuthService.ts`](../src/services/AuthService.ts), [`src/services/SessionService.ts`](../src/services/SessionService.ts), [`src/repositories/FirestoreQuestionRepository.ts`](../src/repositories/FirestoreQuestionRepository.ts), [`tests/FirestoreSecurityRulesIntegration.test.ts`](../tests/FirestoreSecurityRulesIntegration.test.ts).
 * **Verification**: All 152 automated tests passing (`npm test`), production build passing cleanly.
 
 #### Git Initialization and Master Commit (2026-10-04)
@@ -202,19 +202,19 @@ All 152 automated tests in the test suite pass across 13 test files (`npm test`)
 
 | Layer | Responsibility | Technologies | Key Files | Security Implications |
 | :--- | :--- | :--- | :--- | :--- |
-| **Hosting Layer** | Delivers compiled SPA bundle, service worker precache, and static assets. Handles client routing rewrites (`**` $\rightarrow$ `/index.html`). | Firebase Hosting | [`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json) | HTTPS enforcement; immutable caching for assets; `no-cache` for `/sw.js`. |
-| **Presentation Layer** | Mobile-first UI shell, 5 polymorphic renderers, 2-state feedback drawer, accessible forms. | React 18, TailwindCSS, Lucide React | [`src/views/`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/), [`src/components/`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/) | Touch bounds $\ge 48\text{px}$; input sanitization; no password leaks in state. |
-| **State & Hook Layer** | Orchestrates daily session lifecycle, answer evaluation, power-up state, and user stats. | React Hooks (`useLearningSession`) | [`src/hooks/useLearningSession.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useLearningSession.ts) | Guarded submission prevents null/unanswered evaluation exploits. |
-| **Domain & Service Layer** | Deterministic evaluation, date parity resolution, progression calculation, auth operations. | TypeScript Pure Services | [`src/services/`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/), [`src/utils/`](file:///c:/Users/ASUS/Downloads/work/acad/src/utils/) | Zero server credentials; client-authoritative calculation constrained by Firestore rules. |
-| **Data Access Layer** | Reads versioned questions from Firestore; manages local UI cache in IndexedDB. | Cloud Firestore Web SDK, `idb` | [`src/repositories/`](file:///c:/Users/ASUS/Downloads/work/acad/src/repositories/) | Direct reads from `/contentReleases/rel_v1_0_0/questions`. |
-| **Backend Authentication** | Identity management via synthetic email mapping. | Firebase Auth (Client Web SDK) | [`src/services/AuthService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AuthService.ts) | Passwords hashed securely by Google Identity platform. |
-| **Backend Database** | Multi-collection storage with rule-enforced write constraints. | Cloud Firestore | [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules), [`firestore.indexes.json`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.indexes.json) | Role checks, tenant isolation, and field allow-lists. |
+| **Hosting Layer** | Delivers compiled SPA bundle, service worker precache, and static assets. Handles client routing rewrites (`**` $\rightarrow$ `/index.html`). | Firebase Hosting | [`firebase.json`](../firebase.json) | HTTPS enforcement; immutable caching for assets; `no-cache` for `/sw.js`. |
+| **Presentation Layer** | Mobile-first UI shell, 5 polymorphic renderers, 2-state feedback drawer, accessible forms. | React 18, TailwindCSS, Lucide React | [`src/views/`](../src/views/), [`src/components/`](../src/components/) | Touch bounds $\ge 48\text{px}$; input sanitization; no password leaks in state. |
+| **State & Hook Layer** | Orchestrates daily session lifecycle, answer evaluation, power-up state, and user stats. | React Hooks (`useLearningSession`) | [`src/hooks/useLearningSession.ts`](../src/hooks/useLearningSession.ts) | Guarded submission prevents null/unanswered evaluation exploits. |
+| **Domain & Service Layer** | Deterministic evaluation, date parity resolution, progression calculation, auth operations. | TypeScript Pure Services | [`src/services/`](../src/services/), [`src/utils/`](../src/utils/) | Zero server credentials; client-authoritative calculation constrained by Firestore rules. |
+| **Data Access Layer** | Reads versioned questions from Firestore; manages local UI cache in IndexedDB. | Cloud Firestore Web SDK, `idb` | [`src/repositories/`](../src/repositories/) | Direct reads from `/contentReleases/rel_v1_0_0/questions`. |
+| **Backend Authentication** | Identity management via synthetic email mapping. | Firebase Auth (Client Web SDK) | [`src/services/AuthService.ts`](../src/services/AuthService.ts) | Passwords hashed securely by Google Identity platform. |
+| **Backend Database** | Multi-collection storage with rule-enforced write constraints. | Cloud Firestore | [`firestore.rules`](../firestore.rules), [`firestore.indexes.json`](../firestore.indexes.json) | Role checks, tenant isolation, and field allow-lists. |
 
 #### Deferred / Excluded Architecture Components
 
 1. **Cloud Functions for Firebase**:
    * *Status*: **DEFERRED / EXCLUDED FROM ACTIVE DEPLOYMENT**.
-   * *Reason*: The project must run on the Firebase Spark tier (₹0/month). Cloud Functions require upgrading to the pay-as-you-go Blaze plan. The codebase in [`functions/`](file:///c:/Users/ASUS/Downloads/work/acad/functions/) is preserved in the repository as a reference implementation for future Blaze migration.
+   * *Reason*: The project must run on the Firebase Spark tier (₹0/month). Cloud Functions require upgrading to the pay-as-you-go Blaze plan. The codebase in [`functions/`](../functions/) is preserved in the repository as a reference implementation for future Blaze migration.
 2. **Firebase Cloud Storage**:
    * *Status*: **DEFERRED / NOT ACTIVE IN PHASE 2**.
    * *Reason*: Active clinical curriculum data (`AI_limitation.json`) consists of structured text questions and is stored directly in Firestore. Binary media upload pipelines are not required for Phase 2.
@@ -224,42 +224,42 @@ All 152 automated tests in the test suite pass across 13 test files (`npm test`)
 ### 5. Frontend Architecture
 
 #### Frontend Architecture Overview
-The frontend is built using React 18 with TypeScript in strict mode. It uses a single-container layout pattern ([`src/layouts/MobileContainer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/layouts/MobileContainer.tsx)) that limits the application width to standard mobile bounds (`max-w-md`) and clamps height to `100dvh` to prevent mobile viewport overflow.
+The frontend is built using React 18 with TypeScript in strict mode. It uses a single-container layout pattern ([`src/layouts/MobileContainer.tsx`](../src/layouts/MobileContainer.tsx)) that limits the application width to standard mobile bounds (`max-w-md`) and clamps height to `100dvh` to prevent mobile viewport overflow.
 
 #### Comprehensive Frontend File Directory
 
 | File / Directory | Responsibility | Important Functions / Components | Used By |
 | :--- | :--- | :--- | :--- |
-| [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) | Root application router and authentication gatekeeper. | `App()`, `handleAuthSuccess()`, `handleSignOut()`, `handleStartSession()` | Entry point (`main.tsx`) |
-| [`src/layouts/MobileContainer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/layouts/MobileContainer.tsx) | 3-Tier bounded mobile app shell (`100dvh`, `overflow-hidden`). | `MobileContainer({ children })` | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/SignInScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/SignInScreen.tsx) | Mobile login interface with official company logo and password toggle. | `SignInScreen()`, identifier & password validation | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/SignUpScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/SignUpScreen.tsx) | Trainee registration form with Indian State and dependent District dropdowns. | `SignUpScreen()`, state-district cascade logic | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/ForgotPasswordScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/ForgotPasswordScreen.tsx) | Password recovery interface with clear prototype notice. | `ForgotPasswordScreen()` | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/HomeScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/HomeScreen.tsx) | State-aware daily training dashboard (Start, Continue, Review, Locked). | `HomeScreen()`, daily mission hero card | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/DailySessionScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/DailySessionScreen.tsx) | 10-question session runner with header, scrollable question, and pinned footer. | `DailySessionScreen()`, submit gating | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/QuestionReviewScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/QuestionReviewScreen.tsx) | Post-session review screen with clinical takeaways and completion lock. | `QuestionReviewScreen()`, `onDone()` | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/PowerUpsScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/PowerUpsScreen.tsx) | Standalone learning tools center (Hint, Learn, Retry, Streak Shield). | `PowerUpsScreen()` | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/views/ProfileScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/ProfileScreen.tsx) | Simplified ASHA trainee profile, learning stats, location edit modal, sign out. | `ProfileScreen()`, edit profile modal | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/components/common/Header.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/common/Header.tsx) | Top navigation bar with logo and 4-action cluster (`Streak`, `Points`, `Power-Ups`, `Profile`). | `Header()` | All main views |
-| [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/FeedbackDrawer.tsx) | 2-State native bottom sheet with touch drag engine and result banner. | `FeedbackDrawer()`, drag handle pill | [`src/views/DailySessionScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/DailySessionScreen.tsx) |
-| [`src/components/feedback/MicroLearningSheet.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/MicroLearningSheet.tsx) | Scrollable clinical rationale, correct answer display, and learning objective. | `MicroLearningSheet()` | [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/FeedbackDrawer.tsx) |
-| [`src/components/feedback/ResultBanner.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/ResultBanner.tsx) | Result banner indicating Correct / Incorrect / Unanswered with awarded XP. | `ResultBanner()` | [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/FeedbackDrawer.tsx) |
-| [`src/components/questions/QuestionRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/QuestionRenderer.tsx) | Polymorphic dispatcher routing questions to specific renderer components. | `QuestionRenderer()` | [`src/views/DailySessionScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/DailySessionScreen.tsx) |
-| [`src/components/questions/MCQRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/MCQRenderer.tsx) | 4-Option multiple choice renderer with A/B/C/D letter badges and Hint support. | `MCQRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/QuestionRenderer.tsx) |
-| [`src/components/questions/TrueFalseRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/TrueFalseRenderer.tsx) | Binary True / False clinical statement renderer with tactile touch cards. | `TrueFalseRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/QuestionRenderer.tsx) |
-| [`src/components/questions/ImageTapRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/ImageTapRenderer.tsx) | Interactive anatomical hotspot tap renderer with percentage coordinate mapping. | `ImageTapRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/QuestionRenderer.tsx) |
-| [`src/components/questions/StepOrderRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/StepOrderRenderer.tsx) | Tactile clinical step ordering renderer with Up/Down buttons and sequence checks. | `StepOrderRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/QuestionRenderer.tsx) |
-| [`src/components/questions/AudioDiscriminationRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/AudioDiscriminationRenderer.tsx) | Multi-track auscultation audio comparison player with waveform play controls. | `AudioDiscriminationRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/QuestionRenderer.tsx) |
-| [`src/hooks/useLearningSession.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useLearningSession.ts) | Master React hook orchestrating daily training state, persistence, and power-ups. | `useLearningSession()`, `startDailySession()`, `submitCurrentAnswer()` | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx) |
-| [`src/hooks/useBottomSheetGesture.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useBottomSheetGesture.ts) | Touch and mouse gesture engine for two-state feedback bottom sheet. | `useBottomSheetGesture()`, threshold/velocity tracking | [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/FeedbackDrawer.tsx) |
-| [`src/services/AuthService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AuthService.ts) | Client-side Firebase Authentication service with synthetic email mapping. | `AuthService`, `signIn()`, `registerWithUsername()`, `signOut()` | [`src/App.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/App.tsx), Auth screens |
-| [`src/services/SessionService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/SessionService.ts) | Client session service managing Firestore daily sessions and append-only attempts. | `SessionService`, `startDailySession()`, `recordAttempt()`, `finalizeSession()` | [`src/hooks/useLearningSession.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useLearningSession.ts) |
-| [`src/services/AnswerEvaluator.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AnswerEvaluator.ts) | Pure deterministic evaluator with defensive `UNANSWERED` classification. | `AnswerEvaluator.evaluate()`, `isValidAnswer()` | [`src/hooks/useLearningSession.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useLearningSession.ts) |
-| [`src/services/PowerUpService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/PowerUpService.ts) | Deterministic unlock rules and in-session power-up actions. | `PowerUpService`, `calculateInventory()`, `canUseHint()`, `canUseRetry()` | Views, hooks |
-| [`src/services/ProgressionService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/ProgressionService.ts) | Provisional 5-level learner progression curve calculation (Level 1–5). | `ProgressionService.calculateProgression()` | Views, header |
-| [`src/repositories/FirestoreQuestionRepository.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/repositories/FirestoreQuestionRepository.ts) | Reads validated clinical questions from `/contentReleases/rel_v1_0_0/questions`. | `FirestoreQuestionRepository`, `getSessionQuestions()` | [`src/services/QuestionService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/QuestionService.ts) |
-| [`src/repositories/StorageRepository.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/repositories/StorageRepository.ts) | IndexedDB storage wrapper (`idb`) managing local caching and streak computation. | `StorageRepository`, `saveDailySession()`, `computeStreak()` | [`src/hooks/useLearningSession.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useLearningSession.ts) |
-| [`src/data/indiaLocations.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/data/indiaLocations.ts) | Reusable dataset of all 36 Indian States/UTs and their official districts. | `INDIAN_STATES_AND_UTS`, `STATE_DISTRICTS_MAP`, `getDistrictsForState()` | Auth & Profile views |
+| [`src/App.tsx`](../src/App.tsx) | Root application router and authentication gatekeeper. | `App()`, `handleAuthSuccess()`, `handleSignOut()`, `handleStartSession()` | Entry point (`main.tsx`) |
+| [`src/layouts/MobileContainer.tsx`](../src/layouts/MobileContainer.tsx) | 3-Tier bounded mobile app shell (`100dvh`, `overflow-hidden`). | `MobileContainer({ children })` | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/SignInScreen.tsx`](../src/views/SignInScreen.tsx) | Mobile login interface with official company logo and password toggle. | `SignInScreen()`, identifier & password validation | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/SignUpScreen.tsx`](../src/views/SignUpScreen.tsx) | Trainee registration form with Indian State and dependent District dropdowns. | `SignUpScreen()`, state-district cascade logic | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/ForgotPasswordScreen.tsx`](../src/views/ForgotPasswordScreen.tsx) | Password recovery interface with clear prototype notice. | `ForgotPasswordScreen()` | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/HomeScreen.tsx`](../src/views/HomeScreen.tsx) | State-aware daily training dashboard (Start, Continue, Review, Locked). | `HomeScreen()`, daily mission hero card | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/DailySessionScreen.tsx`](../src/views/DailySessionScreen.tsx) | 10-question session runner with header, scrollable question, and pinned footer. | `DailySessionScreen()`, submit gating | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/QuestionReviewScreen.tsx`](../src/views/QuestionReviewScreen.tsx) | Post-session review screen with clinical takeaways and completion lock. | `QuestionReviewScreen()`, `onDone()` | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/PowerUpsScreen.tsx`](../src/views/PowerUpsScreen.tsx) | Standalone learning tools center (Hint, Learn, Retry, Streak Shield). | `PowerUpsScreen()` | [`src/App.tsx`](../src/App.tsx) |
+| [`src/views/ProfileScreen.tsx`](../src/views/ProfileScreen.tsx) | Simplified ASHA trainee profile, learning stats, location edit modal, sign out. | `ProfileScreen()`, edit profile modal | [`src/App.tsx`](../src/App.tsx) |
+| [`src/components/common/Header.tsx`](../src/components/common/Header.tsx) | Top navigation bar with logo and 4-action cluster (`Streak`, `Points`, `Power-Ups`, `Profile`). | `Header()` | All main views |
+| [`src/components/feedback/FeedbackDrawer.tsx`](../src/components/feedback/FeedbackDrawer.tsx) | 2-State native bottom sheet with touch drag engine and result banner. | `FeedbackDrawer()`, drag handle pill | [`src/views/DailySessionScreen.tsx`](../src/views/DailySessionScreen.tsx) |
+| [`src/components/feedback/MicroLearningSheet.tsx`](../src/components/feedback/MicroLearningSheet.tsx) | Scrollable clinical rationale, correct answer display, and learning objective. | `MicroLearningSheet()` | [`src/components/feedback/FeedbackDrawer.tsx`](../src/components/feedback/FeedbackDrawer.tsx) |
+| [`src/components/feedback/ResultBanner.tsx`](../src/components/feedback/ResultBanner.tsx) | Result banner indicating Correct / Incorrect / Unanswered with awarded XP. | `ResultBanner()` | [`src/components/feedback/FeedbackDrawer.tsx`](../src/components/feedback/FeedbackDrawer.tsx) |
+| [`src/components/questions/QuestionRenderer.tsx`](../src/components/questions/QuestionRenderer.tsx) | Polymorphic dispatcher routing questions to specific renderer components. | `QuestionRenderer()` | [`src/views/DailySessionScreen.tsx`](../src/views/DailySessionScreen.tsx) |
+| [`src/components/questions/MCQRenderer.tsx`](../src/components/questions/MCQRenderer.tsx) | 4-Option multiple choice renderer with A/B/C/D letter badges and Hint support. | `MCQRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](../src/components/questions/QuestionRenderer.tsx) |
+| [`src/components/questions/TrueFalseRenderer.tsx`](../src/components/questions/TrueFalseRenderer.tsx) | Binary True / False clinical statement renderer with tactile touch cards. | `TrueFalseRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](../src/components/questions/QuestionRenderer.tsx) |
+| [`src/components/questions/ImageTapRenderer.tsx`](../src/components/questions/ImageTapRenderer.tsx) | Interactive anatomical hotspot tap renderer with percentage coordinate mapping. | `ImageTapRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](../src/components/questions/QuestionRenderer.tsx) |
+| [`src/components/questions/StepOrderRenderer.tsx`](../src/components/questions/StepOrderRenderer.tsx) | Tactile clinical step ordering renderer with Up/Down buttons and sequence checks. | `StepOrderRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](../src/components/questions/QuestionRenderer.tsx) |
+| [`src/components/questions/AudioDiscriminationRenderer.tsx`](../src/components/questions/AudioDiscriminationRenderer.tsx) | Multi-track auscultation audio comparison player with waveform play controls. | `AudioDiscriminationRenderer()` | [`src/components/questions/QuestionRenderer.tsx`](../src/components/questions/QuestionRenderer.tsx) |
+| [`src/hooks/useLearningSession.ts`](../src/hooks/useLearningSession.ts) | Master React hook orchestrating daily training state, persistence, and power-ups. | `useLearningSession()`, `startDailySession()`, `submitCurrentAnswer()` | [`src/App.tsx`](../src/App.tsx) |
+| [`src/hooks/useBottomSheetGesture.ts`](../src/hooks/useBottomSheetGesture.ts) | Touch and mouse gesture engine for two-state feedback bottom sheet. | `useBottomSheetGesture()`, threshold/velocity tracking | [`src/components/feedback/FeedbackDrawer.tsx`](../src/components/feedback/FeedbackDrawer.tsx) |
+| [`src/services/AuthService.ts`](../src/services/AuthService.ts) | Client-side Firebase Authentication service with synthetic email mapping. | `AuthService`, `signIn()`, `registerWithUsername()`, `signOut()` | [`src/App.tsx`](../src/App.tsx), Auth screens |
+| [`src/services/SessionService.ts`](../src/services/SessionService.ts) | Client session service managing Firestore daily sessions and append-only attempts. | `SessionService`, `startDailySession()`, `recordAttempt()`, `finalizeSession()` | [`src/hooks/useLearningSession.ts`](../src/hooks/useLearningSession.ts) |
+| [`src/services/AnswerEvaluator.ts`](../src/services/AnswerEvaluator.ts) | Pure deterministic evaluator with defensive `UNANSWERED` classification. | `AnswerEvaluator.evaluate()`, `isValidAnswer()` | [`src/hooks/useLearningSession.ts`](../src/hooks/useLearningSession.ts) |
+| [`src/services/PowerUpService.ts`](../src/services/PowerUpService.ts) | Deterministic unlock rules and in-session power-up actions. | `PowerUpService`, `calculateInventory()`, `canUseHint()`, `canUseRetry()` | Views, hooks |
+| [`src/services/ProgressionService.ts`](../src/services/ProgressionService.ts) | Provisional 5-level learner progression curve calculation (Level 1–5). | `ProgressionService.calculateProgression()` | Views, header |
+| [`src/repositories/FirestoreQuestionRepository.ts`](../src/repositories/FirestoreQuestionRepository.ts) | Reads validated clinical questions from `/contentReleases/rel_v1_0_0/questions`. | `FirestoreQuestionRepository`, `getSessionQuestions()` | [`src/services/QuestionService.ts`](../src/services/QuestionService.ts) |
+| [`src/repositories/StorageRepository.ts`](../src/repositories/StorageRepository.ts) | IndexedDB storage wrapper (`idb`) managing local caching and streak computation. | `StorageRepository`, `saveDailySession()`, `computeStreak()` | [`src/hooks/useLearningSession.ts`](../src/hooks/useLearningSession.ts) |
+| [`src/data/indiaLocations.ts`](../src/data/indiaLocations.ts) | Reusable dataset of all 36 Indian States/UTs and their official districts. | `INDIAN_STATES_AND_UTS`, `STATE_DISTRICTS_MAP`, `getDistrictsForState()` | Auth & Profile views |
 
 ---
 
@@ -278,7 +278,7 @@ AiSteth Academy uses a **username/password abstraction** on top of Firebase Auth
 1. **Username Normalization**:
    * Strips leading/trailing whitespace and converts to lowercase.
    * Enforces regex: `^[a-z0-9._-]{3,30}$`.
-   * Prohibits leading/trailing special characters and consecutive special characters ([`src/utils/username.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/utils/username.ts)).
+   * Prohibits leading/trailing special characters and consecutive special characters ([`src/utils/username.ts`](../src/utils/username.ts)).
 2. **Synthetic Email Generation**:
    * Translates the normalized username into the canonical internal format: `${normalizedUsername}@trainee.aisteth.internal`.
 3. **Dual Identifier Handling**:
@@ -336,8 +336,8 @@ The registration process follows a **Client registration workflow with compensat
 
 * **Guaranteed**:
   * If username reservation fails because a username already exists in `/usernames/{username}`, the Auth user is deleted and duplicate accounts are prevented.
-  * If a client attempts to forge administrative roles (`PLATFORM_ADMIN`, `SUPERVISOR`) during self-registration, [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L57-L77) strictly denies the profile creation (`data.role == 'TRAINEE'`).
-  * If a client attempts to initialize non-zero XP or streaks, [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L68-L76) strictly denies the document creation.
+  * If a client attempts to forge administrative roles (`PLATFORM_ADMIN`, `SUPERVISOR`) during self-registration, [`firestore.rules`](../firestore.rules#L57-L77) strictly denies the profile creation (`data.role == 'TRAINEE'`).
+  * If a client attempts to initialize non-zero XP or streaks, [`firestore.rules`](../firestore.rules#L68-L76) strictly denies the document creation.
 * **Not Guaranteed (Client-Authoritative Spark Limitation)**:
   * Network disconnects during compensation: If a client's device loses power or connectivity between creating the Auth user and completing Firestore compensation, an orphaned Auth user could exist in Firebase Auth until manually purged.
   * Custom claims: Under the Spark plan without Cloud Functions, `request.auth.token.role` is not set; role checks in security rules fall back to reading the `/users/$(request.auth.uid)` document.
@@ -503,26 +503,26 @@ Under the Firebase Spark architecture, business logic executes on the client. Th
 
 #### Key Security Invariants Enforced in `firestore.rules`
 
-1. **User Profile Creation Allow-List** ([`firestore.rules:L57-L77`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L57-L77)):
+1. **User Profile Creation Allow-List** ([`firestore.rules:L57-L77`](../firestore.rules#L57-L77)):
    * Trainee self-registration enforces `role == 'TRAINEE'` and `organizationId == 'org_rbsk_national'`.
    * Baseline `learningState` must be zeroed out (`totalXp == 0`, `currentStreak == 0`, `currentLevel == 1`, `completedSessionsCount == 0`, `streakShieldActive == false`).
    * Extra or undocumented keys in profile creation are strictly rejected (`keys().hasOnly(...)`).
-2. **Immutable Profile Fields** ([`firestore.rules:L82-L119`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L82-L119)):
+2. **Immutable Profile Fields** ([`firestore.rules:L82-L119`](../firestore.rules#L82-L119)):
    * `uid`, `username`, `role`, `organizationId`, and `createdAt` cannot be modified by any trainee update.
    * If `updatedAt` is modified, it must equal `request.time` (`FieldValue.serverTimestamp()`).
-3. **Progression Delta Clamping** ([`firestore.rules:L108-L116`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L108-L116)):
+3. **Progression Delta Clamping** ([`firestore.rules:L108-L116`](../firestore.rules#L108-L116)):
    * $\Delta\text{totalXp}$ per update is bounded: $0 \le \text{newXp} - \text{oldXp} \le 200$.
    * $\Delta\text{currentStreak}$ per update is bounded: $0 \le \text{newStreak} - \text{oldStreak} \le 1$.
    * $\Delta\text{completedSessionsCount}$ per update is bounded: $0 \le \Delta\text{sessions} \le 1$.
    * `currentLevel` is bounded between 1 and 5.
-4. **Daily Session Integrity** ([`firestore.rules:L180-L194`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L180-L194)):
+4. **Daily Session Integrity** ([`firestore.rules:L180-L194`](../firestore.rules#L180-L194)):
    * Session creation requires **exactly 10 question IDs** (`request.resource.data.questionIds.size() == 10`).
    * Completed sessions (`COMPLETED`, `REVIEW_COMPLETED`, `REVIEW_VIEWED`) are **locked against updates**, preventing re-attempts or score modification.
    * Session question IDs, user ID, session ID, and creation timestamp are immutable once created.
-5. **Append-Only Attempts** ([`firestore.rules:L204-L211`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L204-L211)):
+5. **Append-Only Attempts** ([`firestore.rules:L204-L211`](../firestore.rules#L204-L211)):
    * Creation of attempts is allowed for the session owner.
    * Updates (`allow update: if false;`) and Deletions (`allow delete: if false;`) are strictly blocked.
-6. **Username Registry Protection** ([`firestore.rules:L132-L141`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules#L132-L141)):
+6. **Username Registry Protection** ([`firestore.rules:L132-L141`](../firestore.rules#L132-L141)):
    * Clients can create reservations if `!exists(/usernames/$(username))`.
    * Clients can delete their own reservation for compensating cleanup if downstream registration fails.
    * Updates are blocked.
@@ -534,9 +534,9 @@ Under the Firebase Spark architecture, business logic executes on the client. Th
 #### Platform Capability vs. Current Content Release
 A critical distinction in AiSteth Academy is the separation between **platform rendering capabilities** and **content release datasets**:
 * **Platform Rendering Capabilities**: The application engine supports **5 polymorphic question renderers** (`MCQ`, `TRUE_FALSE`, `IMAGE_TAP`, `STEP_ORDER`, `AUDIO_DISCRIMINATION`).
-* **Current Authoritative Content Release (`rel_v1_0_0`)**: Derived strictly from [`AI_limitation.json`](file:///c:/Users/ASUS/Downloads/work/acad/AI_limitation.json). It contains exactly **20 clinical MCQs** focused on Module 1 (AI Limitation & Clinical Decision Making).
+* **Current Authoritative Content Release (`rel_v1_0_0`)**: Derived strictly from [`AI_limitation.json`](../AI_limitation.json). It contains exactly **20 clinical MCQs** focused on Module 1 (AI Limitation & Clinical Decision Making).
 
-#### Comprehensive 20-Question Content Audit ([`AI_limitation.json`](file:///c:/Users/ASUS/Downloads/work/acad/AI_limitation.json))
+#### Comprehensive 20-Question Content Audit ([`AI_limitation.json`](../AI_limitation.json))
 
 | # | Question ID | Sub-Type | Rank | Parent Follow_Up_For | Focus / Clinical Scenario | Correct |
 | :---: | :--- | :---: | :---: | :---: | :--- | :---: |
@@ -573,7 +573,7 @@ A critical distinction in AiSteth Academy is the separation between **platform r
 ### 11. Question Selection Logic
 
 #### Selection Algorithm Specification
-Daily sessions select **exactly 10 questions** from the active 20-question release pool ([`src/utils/sessionSelection.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/utils/sessionSelection.ts)).
+Daily sessions select **exactly 10 questions** from the active 20-question release pool ([`src/utils/sessionSelection.ts`](../src/utils/sessionSelection.ts)).
 
 ```
                        DAY-PARITY QUESTION SELECTION FLOW
@@ -626,7 +626,7 @@ NOT_STARTED ──(Start Training)──► IN_PROGRESS ──(Answer Q10)──
 3. **`QUESTIONS_COMPLETED`**:
    * Triggered upon answering the 10th question.
    * Adds the session completion bonus (+10 XP).
-   * Automatically transitions the view to [`src/views/QuestionReviewScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/QuestionReviewScreen.tsx).
+   * Automatically transitions the view to [`src/views/QuestionReviewScreen.tsx`](../src/views/QuestionReviewScreen.tsx).
    * Home screen displays `"VIEW SESSION REVIEW"` if the review has not yet been dismissed.
 4. **`REVIEW_VIEWED`**:
    * Triggered when the trainee presses `"COMPLETE & RETURN HOME"` on the review screen.
@@ -711,9 +711,9 @@ The platform provides a non-destructive **RETRY** mechanism:
 └──────────────┴────────────────────────┴─────────────────────────────────────┘
 ```
 
-* **Calculation Engine**: Evaluated deterministically from `UserStats` via [`src/services/PowerUpService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/PowerUpService.ts).
+* **Calculation Engine**: Evaluated deterministically from `UserStats` via [`src/services/PowerUpService.ts`](../src/services/PowerUpService.ts).
 * **Zero Artificial Timers**: Unlocks are based strictly on real learning achievements without artificial timers or paywalls.
-* **Streak Shield Consumption**: When a trainee misses 1 day (`diffDays === 2`), [`StorageRepository.computeStreak()`](file:///c:/Users/ASUS/Downloads/work/acad/src/repositories/StorageRepository.ts#L278-L309) automatically maintains the streak and transitions the shield state to `CONSUMED`.
+* **Streak Shield Consumption**: When a trainee misses 1 day (`diffDays === 2`), [`StorageRepository.computeStreak()`](../src/repositories/StorageRepository.ts#L278-L309) automatically maintains the streak and transitions the shield state to `CONSUMED`.
 
 ---
 
@@ -782,7 +782,7 @@ The platform provides a non-destructive **RETRY** mechanism:
 ### 18. Mobile Responsive Architecture
 
 #### 3-Tier Bounded Viewport Architecture
-To prevent vertical scrollbars on short questions and avoid clipping the Submit button against Android navigation bars, [`src/layouts/MobileContainer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/layouts/MobileContainer.tsx) and [`src/views/DailySessionScreen.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/views/DailySessionScreen.tsx) enforce a 3-tier bounded structure:
+To prevent vertical scrollbars on short questions and avoid clipping the Submit button against Android navigation bars, [`src/layouts/MobileContainer.tsx`](../src/layouts/MobileContainer.tsx) and [`src/views/DailySessionScreen.tsx`](../src/views/DailySessionScreen.tsx) enforce a 3-tier bounded structure:
 
 ```
 ┌────────────────────────────────────────────────────────┐ ◄── Top of Viewport (0px)
@@ -812,7 +812,7 @@ To prevent vertical scrollbars on short questions and avoid clipping the Submit 
 ### 19. Feedback Drawer
 
 #### 2-State Native Bottom Sheet Interaction
-Implemented in [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/feedback/FeedbackDrawer.tsx) using the gesture engine in [`src/hooks/useBottomSheetGesture.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useBottomSheetGesture.ts):
+Implemented in [`src/components/feedback/FeedbackDrawer.tsx`](../src/components/feedback/FeedbackDrawer.tsx) using the gesture engine in [`src/hooks/useBottomSheetGesture.ts`](../src/hooks/useBottomSheetGesture.ts):
 
 ```
     COLLAPSED STATE (Default)                     EXPANDED STATE (Swiped Up)
@@ -843,7 +843,7 @@ Implemented in [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/A
 * **Cache Headers**:
   * `/sw.js`: `Cache-Control: no-cache, no-store, must-revalidate` (ensuring immediate service worker updates).
   * `**/*.@(js|css)`: `Cache-Control: max-age=31536000, immutable` (fingerprinted bundles cached for 1 year).
-* **Hosting Configuration** ([`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json)):
+* **Hosting Configuration** ([`firebase.json`](../firebase.json)):
 ```json
 {
   "hosting": {
@@ -868,12 +868,12 @@ Implemented in [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/A
 
 ### 21. Environment Configuration
 
-#### Multi-Project Mapping ([`.firebaserc`](file:///c:/Users/ASUS/Downloads/work/acad/.firebaserc))
+#### Multi-Project Mapping ([`.firebaserc`](../.firebaserc))
 * Development: `aisteth-academy-dev` (Default active project)
 * Staging: `aisteth-academy-staging`
 * Production: `aisteth-academy-prod`
 
-#### Client Environment Variables ([`.env.development`](file:///c:/Users/ASUS/Downloads/work/acad/.env.development) / [`.env.example`](file:///c:/Users/ASUS/Downloads/work/acad/.env.example))
+#### Client Environment Variables ([`.env.development`](../.env.development) / [`.env.example`](../.env.example))
 * `VITE_FIREBASE_PROJECT_ID`: `aisteth-academy-dev`
 * `VITE_FIREBASE_AUTH_DOMAIN`: `aisteth-academy-dev.firebaseapp.com`
 * `VITE_APP_ENV`: `development`
@@ -881,7 +881,7 @@ Implemented in [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/A
 * `VITE_APP_VERSION`: `1.0.0`
 
 > [!NOTE]
-> Firebase Web API keys (`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID`) are public client identifiers used by the browser to locate the Google Cloud project. Access control and data protection are enforced strictly by Cloud Firestore Security Rules, not by keeping Web API keys secret. Root administrative service account keys (`*.serviceAccountKey.json`) are excluded in [`.gitignore`](file:///c:/Users/ASUS/Downloads/work/acad/.gitignore) and never included in client code.
+> Firebase Web API keys (`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID`) are public client identifiers used by the browser to locate the Google Cloud project. Access control and data protection are enforced strictly by Cloud Firestore Security Rules, not by keeping Web API keys secret. Root administrative service account keys (`*.serviceAccountKey.json`) are excluded in [`.gitignore`](../.gitignore) and never included in client code.
 
 ---
 
@@ -954,8 +954,8 @@ Implemented in [`src/components/feedback/FeedbackDrawer.tsx`](file:///c:/Users/A
 
 ### 25. Content Seeding
 
-The content seeding pipeline is implemented in [`scripts/seed_content.js`](file:///c:/Users/ASUS/Downloads/work/acad/scripts/seed_content.js) (and [`scripts/seed_content.cjs`](file:///c:/Users/ASUS/Downloads/work/acad/scripts/seed_content.cjs)):
-1. **Input File**: Reads raw [`AI_limitation.json`](file:///c:/Users/ASUS/Downloads/work/acad/AI_limitation.json) (18,268 bytes, exactly 20 questions).
+The content seeding pipeline is implemented in [`scripts/seed_content.js`](../scripts/seed_content.js):
+1. **Input File**: Reads raw [`AI_limitation.json`](../AI_limitation.json) (18,268 bytes, exactly 20 questions).
 2. **Release Document Creation**: Seeds `/contentReleases/rel_v1_0_0` with metadata (`status: 'PUBLISHED'`, `totalQuestions: 20`, `version: '1.0.0'`).
 3. **Question Subcollection Ingestion**: Executes a batched write of all 20 question documents into `/contentReleases/rel_v1_0_0/questions/{Question_ID}`.
 4. **Global Configuration Initialization**: Initializes `/appConfig/global` with `activeContentReleaseId: 'rel_v1_0_0'` and default configuration.
@@ -975,19 +975,19 @@ Test Files  13 passed (13)
 
 | Test Suite File | Focus & Verification Scope | Tests | Result |
 | :--- | :--- | :---: | :---: |
-| [`tests/FirestoreSecurityRulesIntegration.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/FirestoreSecurityRulesIntegration.test.ts) | 16 Invariant tests verifying role allow-lists, XP delta clamps, session locking, and append-only attempt logs. | 16 | **PASS** |
-| [`tests/BackendRegistrationAndAuth.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/BackendRegistrationAndAuth.test.ts) | Username normalization, synthetic email mapping, 5-step registration with `reservationId` ownership, parity rotation. | 26 | **PASS** |
-| [`tests/AuthAndBrandingFlow.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/AuthAndBrandingFlow.test.ts) | Sign In/Up validation, official branding, password toggle, Indian State/District dataset integrity. | 22 | **PASS** |
-| [`tests/HomeScreenProgressionAndPowerUps.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/HomeScreenProgressionAndPowerUps.test.ts) | Home screen state machine, level progression, power-up unlock boundaries. | 16 | **PASS** |
-| [`tests/PowerUpsAndProfileInteractive.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/PowerUpsAndProfileInteractive.test.ts) | In-session power-up actions (Hint, Learn, Retry), streak shield protection. | 20 | **PASS** |
-| [`tests/SimplifiedProfileScreen.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/SimplifiedProfileScreen.test.ts) | Simplified ASHA Profile layout, stats cards, sign out flow, single-viewport fit. | 14 | **PASS** |
-| [`tests/MobileLayoutAndResponsiveness.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/MobileLayoutAndResponsiveness.test.ts) | Viewport contract tests (360×800 to 412×915), submit button visibility, 2-state drawer. | 11 | **PASS** |
-| [`tests/AnswerEvaluator.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/AnswerEvaluator.test.ts) | Pure deterministic evaluation and defensive `UNANSWERED` classification. | 7 | **PASS** |
-| [`tests/QuestionRepositoryAndService.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/QuestionRepositoryAndService.test.ts) | Question retrieval, session assembly, IndexedDB persistence. | 6 | **PASS** |
-| [`tests/PowerUpsScreen.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/PowerUpsScreen.test.ts) | Standalone PowerUpsScreen layout, tool cards, state indicators. | 5 | **PASS** |
-| [`tests/HeaderActionCluster.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/HeaderActionCluster.test.ts) | 4-Action header cluster, accessible labels, navigation routing. | 5 | **PASS** |
-| [`tests/useBottomSheetGesture.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/useBottomSheetGesture.test.ts) | Threshold calculations, drag velocity tracking, scroll conflict handling. | 3 | **PASS** |
-| [`tests/SchemaValidation.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/SchemaValidation.test.ts) | Strict AJV validation against [`question.schema.json`](file:///c:/Users/ASUS/Downloads/work/acad/question.schema.json). | 1 | **PASS** |
+| [`tests/FirestoreSecurityRulesIntegration.test.ts`](../tests/FirestoreSecurityRulesIntegration.test.ts) | 16 Invariant tests verifying role allow-lists, XP delta clamps, session locking, and append-only attempt logs. | 16 | **PASS** |
+| [`tests/BackendRegistrationAndAuth.test.ts`](../tests/BackendRegistrationAndAuth.test.ts) | Username normalization, synthetic email mapping, 5-step registration with `reservationId` ownership, parity rotation. | 26 | **PASS** |
+| [`tests/AuthAndBrandingFlow.test.ts`](../tests/AuthAndBrandingFlow.test.ts) | Sign In/Up validation, official branding, password toggle, Indian State/District dataset integrity. | 22 | **PASS** |
+| [`tests/HomeScreenProgressionAndPowerUps.test.ts`](../tests/HomeScreenProgressionAndPowerUps.test.ts) | Home screen state machine, level progression, power-up unlock boundaries. | 16 | **PASS** |
+| [`tests/PowerUpsAndProfileInteractive.test.ts`](../tests/PowerUpsAndProfileInteractive.test.ts) | In-session power-up actions (Hint, Learn, Retry), streak shield protection. | 20 | **PASS** |
+| [`tests/SimplifiedProfileScreen.test.ts`](../tests/SimplifiedProfileScreen.test.ts) | Simplified ASHA Profile layout, stats cards, sign out flow, single-viewport fit. | 14 | **PASS** |
+| [`tests/MobileLayoutAndResponsiveness.test.ts`](../tests/MobileLayoutAndResponsiveness.test.ts) | Viewport contract tests (360×800 to 412×915), submit button visibility, 2-state drawer. | 11 | **PASS** |
+| [`tests/AnswerEvaluator.test.ts`](../tests/AnswerEvaluator.test.ts) | Pure deterministic evaluation and defensive `UNANSWERED` classification. | 7 | **PASS** |
+| [`tests/QuestionRepositoryAndService.test.ts`](../tests/QuestionRepositoryAndService.test.ts) | Question retrieval, session assembly, IndexedDB persistence. | 6 | **PASS** |
+| [`tests/PowerUpsScreen.test.ts`](../tests/PowerUpsScreen.test.ts) | Standalone PowerUpsScreen layout, tool cards, state indicators. | 5 | **PASS** |
+| [`tests/HeaderActionCluster.test.ts`](../tests/HeaderActionCluster.test.ts) | 4-Action header cluster, accessible labels, navigation routing. | 5 | **PASS** |
+| [`tests/useBottomSheetGesture.test.ts`](../tests/useBottomSheetGesture.test.ts) | Threshold calculations, drag velocity tracking, scroll conflict handling. | 3 | **PASS** |
+| [`tests/SchemaValidation.test.ts`](../tests/SchemaValidation.test.ts) | Strict AJV validation against [`question.schema.json`](../question.schema.json). | 1 | **PASS** |
 
 ---
 
@@ -1052,13 +1052,11 @@ acad/
  │    ├── generate_demo_audio.js       # Generates sample audio clips
  │    ├── generate_icons.js            # Generates PWA icon assets
  │    ├── generate_template_xlsx.js    # Generates authoring Excel template
- │    ├── seed_content.js / .cjs       # Seeds rel_v1_0_0 into Firestore
- │    ├── test_connection.cjs          # Tests Firebase connectivity
+ │    ├── seed_content.js              # Seeds rel_v1_0_0 into Firestore
  │    └── validate_schema.js           # Validates JSON against schema
  ├── src/
  │    ├── App.tsx                      # Root component & protected view router
  │    ├── main.tsx                     # React DOM entry point
- │    ├── assets/                      # Application image assets (aisteth_logo.png)
  │    ├── components/
  │    │    ├── audio/AudioPlayerCard.tsx
  │    │    ├── common/ (Badge, Button, Card, Header, ProgressBar)
@@ -1090,8 +1088,7 @@ acad/
  │    ├── utils/
  │    │    ├── sessionSelection.ts     # Client day parity selector
  │    │    └── username.ts             # Username normalization utility
- │    └── views/ (DailySession, ForgotPassword, Home, PowerUps, Profile, QuestionReview, SessionSummary, SignIn, SignUp)
- ├── storage.rules                     # Cloud Storage security rules (legacy reference)
+ │    └── views/ (DailySession, ForgotPassword, Home, PowerUps, Profile, QuestionReview, SignIn, SignUp)
  ├── tailwind.config.js                # Design tokens & color theme configuration
  ├── tests/                            # 13 Vitest automated test suites
  ├── tsconfig.json                     # Root TypeScript configuration
@@ -1247,7 +1244,7 @@ The following pedagogical and technical features are **strictly deferred to Phas
 | :--- | :--- | :--- | :--- | :---: |
 | **Answer keys visible in client Firestore reads** | Authenticated trainees inspecting network traffic could see correct answer letters in release data. | Acceptable for frontline training prototype; evaluation logic runs locally. | Migrate to server-authoritative Cloud Function (`submitAttempt`) on Blaze plan. | Medium |
 | **Client-computed XP & streak increments** | Trainee device calculates XP increments and updates Firestore profile. | Security rules enforce strict numerical delta bounds ($0 \le \Delta\text{totalXp} \le 200$). | Migrate progression calculations to Cloud Functions triggers. | Medium |
-| **No server-side cron jobs for streak resets** | Inactive days are evaluated on next client login rather than midnight server reset. | [`StorageRepository.computeStreak()`](file:///c:/Users/ASUS/Downloads/work/acad/src/repositories/StorageRepository.ts#L278-L309) computes calendar gap on startup. | Implement Cloud Scheduler cron trigger. | Low |
+| **No server-side cron jobs for streak resets** | Inactive days are evaluated on next client login rather than midnight server reset. | [`StorageRepository.computeStreak()`](../src/repositories/StorageRepository.ts#L278-L309) computes calendar gap on startup. | Implement Cloud Scheduler cron trigger. | Low |
 | **Provisional progression curves** | Level 1–5 XP thresholds are provisional. | Progression levels clearly labeled provisional in code and UI. | Align XP curves with official RBSK curriculum guidelines. | Low |
 
 ---
@@ -1309,22 +1306,22 @@ With **152 automated tests passing** and a clean production build, the codebase 
 
 | Feature / Architectural Claim | Classification | Evidence Source in Repository |
 | :--- | :--- | :--- |
-| **React 18 + TypeScript + Vite Toolchain** | **VERIFIED FROM SOURCE CODE & BUILD** | [`package.json`](file:///c:/Users/ASUS/Downloads/work/acad/package.json), [`vite.config.ts`](file:///c:/Users/ASUS/Downloads/work/acad/vite.config.ts), `npm run build` output |
-| **5 Polymorphic Question Renderers** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/components/questions/`](file:///c:/Users/ASUS/Downloads/work/acad/src/components/questions/), [`tests/QuestionRepositoryAndService.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/QuestionRepositoryAndService.test.ts) |
-| **3-Tier Bounded Mobile Shell (100dvh)** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/layouts/MobileContainer.tsx`](file:///c:/Users/ASUS/Downloads/work/acad/src/layouts/MobileContainer.tsx), [`tests/MobileLayoutAndResponsiveness.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/MobileLayoutAndResponsiveness.test.ts) |
-| **2-State Bottom Sheet Gesture Engine** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/hooks/useBottomSheetGesture.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/hooks/useBottomSheetGesture.ts), [`tests/useBottomSheetGesture.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/useBottomSheetGesture.test.ts) |
-| **Username Normalization & Synthetic Emails** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/utils/username.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/utils/username.ts), [`tests/BackendRegistrationAndAuth.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/BackendRegistrationAndAuth.test.ts) |
-| **Compensating Registration Workflow** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/services/AuthService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AuthService.ts), [`tests/BackendRegistrationAndAuth.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/BackendRegistrationAndAuth.test.ts) |
-| **36 Indian States & Districts Dataset** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/data/indiaLocations.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/data/indiaLocations.ts), [`tests/AuthAndBrandingFlow.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/AuthAndBrandingFlow.test.ts) |
-| **Deterministic Day-Parity Question Selection**| **VERIFIED FROM SOURCE CODE & TESTS** | [`src/utils/sessionSelection.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/utils/sessionSelection.ts), [`tests/BackendRegistrationAndAuth.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/BackendRegistrationAndAuth.test.ts) |
-| **Firestore Security Rules (v2.7.0 Spark)** | **VERIFIED FROM SOURCE CODE & TESTS** | [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules), [`tests/FirestoreSecurityRulesIntegration.test.ts`](file:///c:/Users/ASUS/Downloads/work/acad/tests/FirestoreSecurityRulesIntegration.test.ts) |
-| **20-Question AI Limitation Dataset** | **VERIFIED FROM SOURCE CODE** | [`AI_limitation.json`](file:///c:/Users/ASUS/Downloads/work/acad/AI_limitation.json), [`QUESTIONNAIRE_CONTENT_AUDIT.md`](file:///c:/Users/ASUS/Downloads/work/acad/QUESTIONNAIRE_CONTENT_AUDIT.md) |
-| **Content Seeding Script** | **VERIFIED FROM SOURCE CODE** | [`scripts/seed_content.js`](file:///c:/Users/ASUS/Downloads/work/acad/scripts/seed_content.js) |
-| **Firebase Hosting Configuration** | **VERIFIED FROM SOURCE CODE** | [`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json) |
-| **Cloud Functions Exclusion from Spark** | **VERIFIED FROM SOURCE CODE** | [`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json), [`functions/`](file:///c:/Users/ASUS/Downloads/work/acad/functions/) |
-| **Cloud Storage Deferral** | **VERIFIED FROM SOURCE CODE & DOCS** | [`DATABASE_SCHEMA.md`](file:///c:/Users/ASUS/Downloads/work/acad/DATABASE_SCHEMA.md), [`PROJECT_LOG.md`](file:///c:/Users/ASUS/Downloads/work/acad/PROJECT_LOG.md) |
-| **Adaptive Question Branching (Phase 3)** | **PLANNED ONLY / DEFERRED** | [`BACKEND_IMPLEMENTATION_PLAN.md`](file:///c:/Users/ASUS/Downloads/work/acad/BACKEND_IMPLEMENTATION_PLAN.md) |
-| **Live Cloud Firestore Network Deployment** | **PARTIALLY VERIFIED (CLI Auth Pending)** | [`BACKEND_PHASE_2_3_REPORT.md`](file:///c:/Users/ASUS/Downloads/work/acad/BACKEND_PHASE_2_3_REPORT.md) |
+| **React 18 + TypeScript + Vite Toolchain** | **VERIFIED FROM SOURCE CODE & BUILD** | [`package.json`](../package.json), [`vite.config.ts`](../vite.config.ts), `npm run build` output |
+| **5 Polymorphic Question Renderers** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/components/questions/`](../src/components/questions/), [`tests/QuestionRepositoryAndService.test.ts`](../tests/QuestionRepositoryAndService.test.ts) |
+| **3-Tier Bounded Mobile Shell (100dvh)** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/layouts/MobileContainer.tsx`](../src/layouts/MobileContainer.tsx), [`tests/MobileLayoutAndResponsiveness.test.ts`](../tests/MobileLayoutAndResponsiveness.test.ts) |
+| **2-State Bottom Sheet Gesture Engine** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/hooks/useBottomSheetGesture.ts`](../src/hooks/useBottomSheetGesture.ts), [`tests/useBottomSheetGesture.test.ts`](../tests/useBottomSheetGesture.test.ts) |
+| **Username Normalization & Synthetic Emails** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/utils/username.ts`](../src/utils/username.ts), [`tests/BackendRegistrationAndAuth.test.ts`](../tests/BackendRegistrationAndAuth.test.ts) |
+| **Compensating Registration Workflow** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/services/AuthService.ts`](../src/services/AuthService.ts), [`tests/BackendRegistrationAndAuth.test.ts`](../tests/BackendRegistrationAndAuth.test.ts) |
+| **36 Indian States & Districts Dataset** | **VERIFIED FROM SOURCE CODE & TESTS** | [`src/data/indiaLocations.ts`](../src/data/indiaLocations.ts), [`tests/AuthAndBrandingFlow.test.ts`](../tests/AuthAndBrandingFlow.test.ts) |
+| **Deterministic Day-Parity Question Selection**| **VERIFIED FROM SOURCE CODE & TESTS** | [`src/utils/sessionSelection.ts`](../src/utils/sessionSelection.ts), [`tests/BackendRegistrationAndAuth.test.ts`](../tests/BackendRegistrationAndAuth.test.ts) |
+| **Firestore Security Rules (v2.7.0 Spark)** | **VERIFIED FROM SOURCE CODE & TESTS** | [`firestore.rules`](../firestore.rules), [`tests/FirestoreSecurityRulesIntegration.test.ts`](../tests/FirestoreSecurityRulesIntegration.test.ts) |
+| **20-Question AI Limitation Dataset** | **VERIFIED FROM SOURCE CODE** | [`AI_limitation.json`](../AI_limitation.json), [`QUESTIONNAIRE_CONTENT_AUDIT.md`](../QUESTIONNAIRE_CONTENT_AUDIT.md) |
+| **Content Seeding Script** | **VERIFIED FROM SOURCE CODE** | [`scripts/seed_content.js`](../scripts/seed_content.js) |
+| **Firebase Hosting Configuration** | **VERIFIED FROM SOURCE CODE** | [`firebase.json`](../firebase.json) |
+| **Cloud Functions Exclusion from Spark** | **VERIFIED FROM SOURCE CODE** | [`firebase.json`](../firebase.json), [`functions/`](../functions/) |
+| **Cloud Storage Deferral** | **VERIFIED FROM SOURCE CODE & DOCS** | [`DATABASE_SCHEMA.md`](../DATABASE_SCHEMA.md), [`PROJECT_LOG.md`](../PROJECT_LOG.md) |
+| **Adaptive Question Branching (Phase 3)** | **PLANNED ONLY / DEFERRED** | [`BACKEND_IMPLEMENTATION_PLAN.md`](../BACKEND_IMPLEMENTATION_PLAN.md) |
+| **Live Cloud Firestore Network Deployment** | **PARTIALLY VERIFIED (CLI Auth Pending)** | [`BACKEND_PHASE_2_3_REPORT.md`](../BACKEND_PHASE_2_3_REPORT.md) |
 
 ---
 
@@ -1332,20 +1329,20 @@ With **152 automated tests passing** and a clean production build, the codebase 
 
 1. **Audited the Complete Repository Structure and History**:
    * Inspected all 117 tracked files across `src/`, `functions/`, `scripts/`, `tests/`, and documentation files.
-   * Examined [`PROJECT_LOG.md`](file:///c:/Users/ASUS/Downloads/work/acad/PROJECT_LOG.md), [`walkthrough.md`](file:///c:/Users/ASUS/Downloads/work/acad/walkthrough.md), [`DATABASE_SCHEMA.md`](file:///c:/Users/ASUS/Downloads/work/acad/DATABASE_SCHEMA.md), and [`QUESTIONNAIRE_CONTENT_AUDIT.md`](file:///c:/Users/ASUS/Downloads/work/acad/QUESTIONNAIRE_CONTENT_AUDIT.md).
+   * Examined [`PROJECT_LOG.md`](../PROJECT_LOG.md), [`walkthrough.md`](../walkthrough.md), [`DATABASE_SCHEMA.md`](../DATABASE_SCHEMA.md), and [`QUESTIONNAIRE_CONTENT_AUDIT.md`](../QUESTIONNAIRE_CONTENT_AUDIT.md).
 2. **Verified the Test Suite**:
    * Executed `npm test` using Vitest v2.1.9, verifying that all **152 tests passed across 13 test files** with 0 failures.
 3. **Verified the Production Build**:
    * Executed `npm run build` (`tsc && vite build`), compiling the production bundle into `dist/` with PWA manifest and service worker precaching in 4.21s with 0 errors.
 4. **Inspected Firestore Security Rules & Indexes**:
-   * Verified [`firestore.rules`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.rules) implementing strict profile allow-lists, rate-limited progression bounds ($0 \le \Delta\text{totalXp} \le 200$), session locking, append-only attempt logs, and username reservation rules.
-   * Verified all 4 composite query indexes in [`firestore.indexes.json`](file:///c:/Users/ASUS/Downloads/work/acad/firestore.indexes.json).
+   * Verified [`firestore.rules`](../firestore.rules) implementing strict profile allow-lists, rate-limited progression bounds ($0 \le \Delta\text{totalXp} \le 200$), session locking, append-only attempt logs, and username reservation rules.
+   * Verified all 4 composite query indexes in [`firestore.indexes.json`](../firestore.indexes.json).
 5. **Audited Questionnaire Content & Selection Logic**:
-   * Verified that [`AI_limitation.json`](file:///c:/Users/ASUS/Downloads/work/acad/AI_limitation.json) contains exactly 20 real MCQs (10 `-TH` and 10 `-PR`, ranks 1 to 10).
-   * Verified the deterministic `Asia/Kolkata` day-parity selection algorithm in [`src/utils/sessionSelection.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/utils/sessionSelection.ts).
+   * Verified that [`AI_limitation.json`](../AI_limitation.json) contains exactly 20 real MCQs (10 `-TH` and 10 `-PR`, ranks 1 to 10).
+   * Verified the deterministic `Asia/Kolkata` day-parity selection algorithm in [`src/utils/sessionSelection.ts`](../src/utils/sessionSelection.ts).
 6. **Audited Authentication & Spark Architecture Transition**:
-   * Verified client-side Firebase Authentication in [`src/services/AuthService.ts`](file:///c:/Users/ASUS/Downloads/work/acad/src/services/AuthService.ts) using synthetic email translation (`<username>@trainee.aisteth.internal`) and compensating cleanup.
-   * Verified that Cloud Functions and Cloud Storage are excluded from active deployment in [`firebase.json`](file:///c:/Users/ASUS/Downloads/work/acad/firebase.json) to maintain zero-cost Spark tier compliance.
+   * Verified client-side Firebase Authentication in [`src/services/AuthService.ts`](../src/services/AuthService.ts) using synthetic email translation (`<username>@trainee.aisteth.internal`) and compensating cleanup.
+   * Verified that Cloud Functions and Cloud Storage are excluded from active deployment in [`firebase.json`](../firebase.json) to maintain zero-cost Spark tier compliance.
 7. **Verified Git Repository Status**:
    * Confirmed initial commit `360408f` on branch `main` tracking remote `https://github.com/tarun-vee/acad.git`.
 8. **Synthesized the Complete Technical Handover Document**:
