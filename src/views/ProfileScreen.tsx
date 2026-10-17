@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Header } from '../components/common/Header';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
-import { UserProfile, DEFAULT_USER_PROFILE } from '../models/user.types';
+import { UserProfile } from '../models/user.types';
 import { UserStats } from '../models/session.types';
+import { useUserProfile } from '../hooks/useUserProfile';
 import {
   defaultStorageRepository,
   StorageRepository
@@ -14,7 +15,8 @@ import {
   MapPin,
   Building2,
   ChevronRight,
-  LogOut
+  LogOut,
+  AlertCircle
 } from 'lucide-react';
 import { INDIAN_STATES_AND_UTS, getDistrictsForState } from '../data/indiaLocations';
 
@@ -35,39 +37,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onEditProfile,
   onSignOut,
 }) => {
-  const [profile, setProfile] = useState<UserProfile>(initialProfile || DEFAULT_USER_PROFILE);
-  const [isLoading, setIsLoading] = useState(!initialProfile);
+  const {
+    profile,
+    isLoading,
+    isSaving,
+    isError,
+    errorMessage,
+    refetch,
+    updateProfile,
+  } = useUserProfile({
+    initialProfile,
+    initialStats: userStats,
+    storageRepository,
+  });
+
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'ASHA_WORKER' | 'ANGANWADI_WORKER' | 'HEALTH_VOLUNTEER'>('ASHA_WORKER');
   const [editDistrict, setEditDistrict] = useState('');
   const [editState, setEditState] = useState('');
   const [editCenter, setEditCenter] = useState('');
-
-  // Load user profile from storage if not provided in props
-  useEffect(() => {
-    let isMounted = true;
-    async function loadData() {
-      try {
-        if (!initialProfile) {
-          const loadedProfile = await storageRepository.getUserProfile();
-          if (isMounted) {
-            setProfile(loadedProfile || DEFAULT_USER_PROFILE);
-            setIsLoading(false);
-          }
-        } else {
-          setProfile(initialProfile);
-          setIsLoading(false);
-        }
-      } catch {
-        if (isMounted) setIsLoading(false);
-      }
-    }
-    loadData();
-    return () => {
-      isMounted = false;
-    };
-  }, [initialProfile, storageRepository]);
 
   // Helper for human-friendly role name
   const formatRoleDisplay = (role?: string): string => {
@@ -103,21 +92,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const handleSaveProfile = async () => {
-    const updated: UserProfile = {
-      ...profile,
-      name: editName.trim() || profile.name || 'Frontline Trainee',
-      role: editRole,
-      district: editDistrict.trim() || profile.district,
-      state: editState.trim() || profile.state,
-      healthSubCentre: editCenter.trim() || profile.healthSubCentre || profile.centerName,
-      centerName: editCenter.trim() || profile.centerName,
-    };
-    setProfile(updated);
-    setIsEditing(false);
     try {
-      await storageRepository.saveUserProfile(updated);
-    } catch (e) {
-      console.warn('Failed to persist updated profile', e);
+      await updateProfile({
+        name: editName.trim() || profile.name || 'Frontline Trainee',
+        role: editRole,
+        district: editDistrict.trim() || profile.district,
+        state: editState.trim() || profile.state,
+        healthSubCentre: editCenter.trim() || profile.healthSubCentre || profile.centerName,
+        centerName: editCenter.trim() || profile.centerName,
+      });
+      setIsEditing(false);
+    } catch {
+      // Error message is displayed in UI; keep edit open so trainee doesn't lose inputs
     }
   };
 
@@ -137,6 +123,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           title="My Profile"
           showBack={true}
           onBack={onBack}
+          streakCount={userStats?.currentStreak || 0}
+          xpCount={userStats?.totalXp || 0}
         />
         <main className="flex-1 p-3.5 sm:p-4 flex flex-col gap-3 max-w-md mx-auto w-full pb-4 animate-pulse">
           <div className="h-28 rounded-2xl bg-slate-200" />
@@ -154,9 +142,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         title="My Profile"
         showBack={true}
         onBack={onBack}
+        streakCount={userStats?.currentStreak || 0}
+        xpCount={userStats?.totalXp || 0}
       />
 
       <main className="flex-1 px-3.5 sm:px-4 py-3 sm:py-3.5 flex flex-col gap-3 max-w-md mx-auto w-full pb-4">
+        {/* Error Alert Banner */}
+        {isError && errorMessage && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-950 flex items-center justify-between text-xs gap-2 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="font-medium">{errorMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="font-bold text-rose-700 underline text-xs cursor-pointer shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* ============================================================ */}
         {/* 2. SECTION 1: MY PROFILE CARD */}
         {/* ============================================================ */}
@@ -250,7 +257,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
                 <div>
                   <label className="block text-[11px] font-bold text-content-primary mb-0.5">
                     State
@@ -315,6 +322,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <Button
                   variant="secondary"
                   size="sm"
+                  disabled={isSaving}
                   onClick={() => setIsEditing(false)}
                 >
                   Cancel
@@ -322,9 +330,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <Button
                   variant="primary"
                   size="sm"
+                  disabled={isSaving}
                   onClick={handleSaveProfile}
                 >
-                  Save Changes
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </div>
@@ -341,43 +350,43 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
             {/* Current Streak Card */}
-            <div className="bg-amber-50/80 border border-amber-200/90 rounded-xl p-2.5 flex flex-col items-center text-center justify-center min-h-[76px] shadow-2xs">
+            <Card padding="sm" className="flex flex-col items-center justify-center text-center min-h-[76px] bg-amber-50/70 border-amber-200/80">
               <span className="text-base sm:text-lg" role="img" aria-label="streak">
                 🔥
               </span>
-              <span className="text-sm sm:text-base font-black text-amber-950 block leading-tight mt-0.5">
-                {streakLabel}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-amber-800/90 block mt-0.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-800/80 block mt-0.5">
                 Streak
               </span>
-            </div>
+              <span className="text-xs sm:text-sm font-black text-amber-950 block leading-tight mt-0.5 whitespace-nowrap">
+                {streakLabel}
+              </span>
+            </Card>
 
             {/* Learning Points Card */}
-            <div className="bg-brand-50/80 border border-brand-200/90 rounded-xl p-2.5 flex flex-col items-center text-center justify-center min-h-[76px] shadow-2xs">
+            <Card padding="sm" className="flex flex-col items-center justify-center text-center min-h-[76px] bg-brand-50/70 border-brand-200/80">
               <span className="text-base sm:text-lg" role="img" aria-label="learning points">
                 ⚡
               </span>
-              <span className="text-sm sm:text-base font-black text-brand-950 block leading-tight mt-0.5">
-                {learningPointsCount}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-brand-800/90 block mt-0.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-brand-800/80 block mt-0.5">
                 Points
               </span>
-            </div>
+              <span className="text-xs sm:text-sm font-black text-brand-950 block leading-tight mt-0.5 whitespace-nowrap">
+                {learningPointsCount}
+              </span>
+            </Card>
 
             {/* Lessons Completed Card */}
-            <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-2.5 flex flex-col items-center text-center justify-center min-h-[76px] shadow-2xs">
+            <Card padding="sm" className="flex flex-col items-center justify-center text-center min-h-[76px] bg-emerald-50/70 border-emerald-200/80">
               <span className="text-base sm:text-lg" role="img" aria-label="lessons completed">
                 📚
               </span>
-              <span className="text-sm sm:text-base font-black text-emerald-950 block leading-tight mt-0.5">
-                {lessonsCompletedCount}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-800/90 block mt-0.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-800/80 block mt-0.5">
                 Lessons
               </span>
-            </div>
+              <span className="text-xs sm:text-sm font-black text-emerald-950 block leading-tight mt-0.5 whitespace-nowrap">
+                {lessonsCompletedCount}
+              </span>
+            </Card>
           </div>
         </div>
 

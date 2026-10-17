@@ -62,6 +62,8 @@ export const PowerUpsScreen: React.FC<PowerUpsScreenProps> = ({
         title="Power-Ups"
         showBack={true}
         onBack={onBack}
+        streakCount={userStats?.currentStreak || 0}
+        xpCount={userStats?.totalXp || 0}
       />
 
       <main className="flex-1 px-3.5 sm:px-4 py-3 sm:py-3.5 flex flex-col gap-3 max-w-md mx-auto w-full pb-6">

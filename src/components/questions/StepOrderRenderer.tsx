@@ -100,26 +100,26 @@ export const StepOrderRenderer: React.FC<StepOrderRendererProps> = ({
               {stepText}
             </div>
 
-            {/* Reorder Arrows (Primary tactile control) */}
+            {/* Reorder Arrows (Primary tactile control with >=44x44px touch targets) */}
             {!isSubmitted ? (
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => moveStep(index, 'up')}
                   disabled={isFirst}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-content-secondary hover:bg-brand-50 hover:text-brand-600 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center bg-slate-100 text-content-secondary hover:bg-brand-50 hover:text-brand-600 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all touch-manipulation select-none"
                   aria-label={`Move Step ${index + 1} Up`}
                 >
-                  <ArrowUp className="w-4 h-4" />
+                  <ArrowUp className="w-5 h-5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => moveStep(index, 'down')}
                   disabled={isLast}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-content-secondary hover:bg-brand-50 hover:text-brand-600 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center bg-slate-100 text-content-secondary hover:bg-brand-50 hover:text-brand-600 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all touch-manipulation select-none"
                   aria-label={`Move Step ${index + 1} Down`}
                 >
-                  <ArrowDown className="w-4 h-4" />
+                  <ArrowDown className="w-5 h-5" />
                 </button>
               </div>
             ) : (

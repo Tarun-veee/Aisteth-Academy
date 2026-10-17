@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { PowerUpService } from '../src/services/PowerUpService';
 import { StorageRepository } from '../src/repositories/StorageRepository';
 import { UserStats, StoredSessionRecord } from '../src/models/session.types';
@@ -291,6 +292,47 @@ describe('Power-Up Business Logic & Unlock Conditions', () => {
       // No retry-related props allowed
       expect((el.props as any).canRetry).toBeUndefined();
       expect((el.props as any).onUseRetry).toBeUndefined();
+    });
+
+    it('verifies incorrect-answer FeedbackDrawer strictly omits "CORRECT SOLUTION:" and "Swipe up" instruction', () => {
+      const el = React.createElement(FeedbackDrawer, {
+        isOpen: true,
+        evaluation: {
+          status: 'INCORRECT',
+          is_correct: false,
+          user_payload: { type: 'MCQ', selected_option: 'option_b' },
+          correct_solution_display: 'Option A',
+          explanation: 'A soft murmur that becomes much quieter or disappears when a healthy child stands up is likely an innocent murmur.',
+          learning_objective: 'Master innocent vs pathological murmur auscultation.',
+          category: 'HEART_RECORDING',
+          question_id: 'MG-POS-01-PR',
+          awarded_xp: 0,
+        },
+        onContinue: () => {},
+        isLastQuestion: false,
+      });
+
+      const html = renderToString(el);
+
+      // Verify removal of "CORRECT SOLUTION:" section
+      expect(html).not.toContain('CORRECT SOLUTION:');
+      expect(html).not.toContain('Option A');
+
+      // Verify removal of "Swipe up for full breakdown"
+      expect(html).not.toContain('Swipe up for full breakdown');
+      expect(html).not.toContain('Swipe down to collapse');
+
+      // Verify preservation of status banner and micro-learning point
+      expect(html).toContain('Incorrect');
+      expect(html).toContain('Review clinical explanation below');
+      expect(html).toContain('MICRO-LEARNING POINT:');
+      expect(html).toContain('A soft murmur that becomes much quieter or disappears');
+      expect(html).toContain('Objective:');
+      expect(html).toContain('Master innocent vs pathological murmur auscultation.');
+
+      // Verify visual pill drag handle and Continue button
+      expect(html).toContain('rounded-full');
+      expect(html).toContain('Continue');
     });
   });
 });

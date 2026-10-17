@@ -41,7 +41,7 @@ export const AudioDiscriminationRenderer: React.FC<AudioDiscriminationRendererPr
   };
 
   return (
-    <div className="flex flex-col gap-3.5 w-full">
+    <div role="radiogroup" aria-label="Audio recording choices" className="flex flex-col gap-3.5 w-full">
       <div className="flex items-center gap-2 px-3 py-2 bg-brand-50 rounded-xl border border-brand-100 text-xs font-semibold text-brand-800">
         <Headphones className="w-4 h-4 text-brand-600" />
         <span>Listen to both tracks, then select the better recording below:</span>

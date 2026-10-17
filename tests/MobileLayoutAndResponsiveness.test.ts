@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { AnswerEvaluator } from '../src/services/AnswerEvaluator';
+import { QuestionReviewScreen } from '../src/views/QuestionReviewScreen';
+import { StepOrderRenderer } from '../src/components/questions/StepOrderRenderer';
+import { AudioDiscriminationRenderer } from '../src/components/questions/AudioDiscriminationRenderer';
+import { MCQRenderer } from '../src/components/questions/MCQRenderer';
+import { ImageTapRenderer } from '../src/components/questions/ImageTapRenderer';
 import { MCQQuestion, TrueFalseQuestion, ImageTapQuestion, StepOrderQuestion, AudioDiscriminationQuestion } from '../src/models/question.types';
 
 describe('Mobile Viewport Layout & Submit Gating Tests', () => {
@@ -163,14 +169,140 @@ describe('Mobile Viewport Layout & Submit Gating Tests', () => {
     expect(evalRes.user_payload).toEqual({ type: 'MCQ', selected_option: 'option_b' });
   });
 
-  describe('Target Mobile Viewport Verification (360, 375, 390, 412)', () => {
-    const targetWidths = [360, 375, 390, 412];
+  describe('Target Mobile Viewport Verification & Real Component DOM Layout (TEST-001)', () => {
+    it('verifies StepOrderRenderer reorder controls enforce >=44x44px touch targets', () => {
+      const html = renderToString(
+        React.createElement(StepOrderRenderer, {
+          question: sampleStepOrder,
+        })
+      );
+      expect(html).toContain('min-w-[44px]');
+      expect(html).toContain('min-h-[44px]');
+      expect(html).toContain('touch-manipulation');
+    });
 
-    targetWidths.forEach((width) => {
-      it(`supports responsive layout container bounds at ${width}px width`, () => {
-        expect(width).toBeGreaterThanOrEqual(360);
-        expect(width).toBeLessThanOrEqual(430);
-      });
+    it('verifies AudioDiscriminationRenderer renders accessible radiogroup with keyboard-operable cards', () => {
+      const html = renderToString(
+        React.createElement(AudioDiscriminationRenderer, {
+          question: sampleAudio,
+        })
+      );
+      expect(html).toContain('role="radiogroup"');
+      expect(html).toContain('role="radio"');
+      expect(html).toContain('aria-checked');
+      expect(html).toContain('tabindex="0"');
+    });
+
+    it('verifies MCQRenderer aligns badges with items-start on multiline options', () => {
+      const html = renderToString(
+        React.createElement(MCQRenderer, {
+          question: sampleMCQ,
+        })
+      );
+      expect(html).toContain('items-start');
+    });
+
+    it('verifies ImageTapRenderer renders accessible application role and keyboard instructions', () => {
+      const html = renderToString(
+        React.createElement(ImageTapRenderer, {
+          question: sampleImageTap,
+        })
+      );
+      expect(html).toContain('role="application"');
+      expect(html).toContain('tabindex="0"');
+      expect(html).toContain('arrow keys');
+    });
+  });
+
+  describe('Regression Test: QuestionReviewScreen Header Responsive Wrapping (UI-001)', () => {
+    const longAudioQuestion: any = {
+      question_id: 'DEMO_AUDIO_001',
+      type: 'AUDIO_DISCRIMINATION',
+      category: 'QUALITY_ASSESSMENT',
+      difficulty: 'INTERMEDIATE',
+      question: 'Listen to both recordings and select the clear recording without motion artifact:',
+      audio_asset_a: '/assets/audio/clear_s1_s2.mp3',
+      audio_asset_b: '/assets/audio/noisy_friction.mp3',
+      label_a: 'Recording A (Standard Placement)',
+      label_b: 'Recording B (Friction Artifact)',
+      correct_choice: 'audio_a',
+      clinical_finding: 'Clear physiological S1 and S2 heart sounds with zero rubbing friction artifact.',
+      explanation: 'Recording A shows clear heart sounds, while Recording B contains rubbing artifact.',
+      source: 'DEMO',
+      clinician_validated: false,
+      version: '1.0.0',
+    };
+
+    it('renders Q10 • AUDIO_DISCRIMINATION [QUALITY_ASSESSMENT] with full "Needs Review" status badge and responsive wrapping classes', () => {
+      const historyItem = {
+        questionId: 'DEMO_AUDIO_001',
+        question: longAudioQuestion,
+        userAnswer: { type: 'AUDIO_DISCRIMINATION' as const, selected_audio: 'audio_b' as const },
+        evaluation: {
+          question_id: 'DEMO_AUDIO_001',
+          is_correct: false,
+          status: 'INCORRECT' as const,
+          awarded_xp: 0,
+          explanation: 'Recording A shows clear heart sounds.',
+          correct_solution_display: 'Recording A',
+        },
+        timestamp: Date.now(),
+      };
+
+      const html = renderToString(
+        React.createElement(QuestionReviewScreen, {
+          history: Array(9).fill(historyItem).concat([historyItem]),
+          onDone: () => {},
+        })
+      );
+
+      // Verify Q10 and metadata badges are rendered
+      const cleanHtml = html.replace(/<!-- -->/g, '');
+      expect(cleanHtml).toContain('Q10 • AUDIO_DISCRIMINATION');
+      expect(cleanHtml).toContain('QUALITY_ASSESSMENT');
+
+      // Verify the entire "Needs Review" status badge is rendered
+      expect(cleanHtml).toContain('Needs Review');
+
+      // Verify responsive flex-wrap and shrink-0 classes are applied
+      expect(cleanHtml).toContain('flex-wrap');
+      expect(cleanHtml).toContain('shrink-0');
+    });
+
+    it('renders Q5 • AUDIO_DISCRIMINATION [QUALITY_ASSESSMENT] with full "Correct" status badge and responsive wrapping classes', () => {
+      const correctHistoryItem = {
+        questionId: 'DEMO_AUDIO_001',
+        question: longAudioQuestion,
+        userAnswer: { type: 'AUDIO_DISCRIMINATION' as const, selected_audio: 'audio_a' as const },
+        evaluation: {
+          question_id: 'DEMO_AUDIO_001',
+          is_correct: true,
+          status: 'CORRECT' as const,
+          awarded_xp: 5,
+          explanation: 'Recording A shows clear heart sounds.',
+          correct_solution_display: 'Recording A',
+        },
+        timestamp: Date.now(),
+      };
+
+      const html = renderToString(
+        React.createElement(QuestionReviewScreen, {
+          history: Array(4).fill(correctHistoryItem).concat([correctHistoryItem]),
+          onDone: () => {},
+        })
+      );
+
+      // Verify Q5 and metadata badges are rendered
+      const cleanHtml = html.replace(/<!-- -->/g, '');
+      expect(cleanHtml).toContain('Q5 • AUDIO_DISCRIMINATION');
+      expect(cleanHtml).toContain('QUALITY_ASSESSMENT');
+
+      // Verify the entire "Correct" status badge is rendered
+      expect(cleanHtml).toContain('Correct');
+
+      // Verify responsive flex-wrap and shrink-0 classes are applied
+      expect(cleanHtml).toContain('flex-wrap');
+      expect(cleanHtml).toContain('shrink-0');
     });
   });
 });

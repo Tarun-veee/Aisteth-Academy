@@ -44,6 +44,46 @@ export const ImageTapRenderer: React.FC<ImageTapRendererProps> = ({
     });
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isSubmitted) return;
+
+    const currentX = tapCoordinate ? tapCoordinate.x_percent : 50;
+    const currentY = tapCoordinate ? tapCoordinate.y_percent : 50;
+    const step = e.shiftKey ? 5 : 2;
+
+    let nextX = currentX;
+    let nextY = currentY;
+    let handled = false;
+
+    if (e.key === 'ArrowLeft') {
+      nextX = Math.max(0, currentX - step);
+      handled = true;
+    } else if (e.key === 'ArrowRight') {
+      nextX = Math.min(100, currentX + step);
+      handled = true;
+    } else if (e.key === 'ArrowUp') {
+      nextY = Math.max(0, currentY - step);
+      handled = true;
+    } else if (e.key === 'ArrowDown') {
+      nextY = Math.min(100, currentY + step);
+      handled = true;
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      // Place marker at current focus or center if not placed yet
+      handled = true;
+    }
+
+    if (handled) {
+      e.preventDefault();
+      onAnswerChange({
+        type: 'IMAGE_TAP',
+        tap_coordinate: {
+          x_percent: Number(nextX.toFixed(1)),
+          y_percent: Number(nextY.toFixed(1)),
+        },
+      });
+    }
+  };
+
   const { x_min_percent, y_min_percent, x_max_percent, y_max_percent, label } =
     question.target_zone;
 
@@ -56,7 +96,7 @@ export const ImageTapRenderer: React.FC<ImageTapRendererProps> = ({
       <div className="flex items-center justify-between px-3 py-2 bg-brand-50 rounded-xl border border-brand-100 text-xs font-semibold text-brand-800">
         <span className="flex items-center gap-1.5">
           <Target className="w-4 h-4 text-brand-600" />
-          {tapCoordinate ? 'Location selected. Tap again to adjust.' : 'Tap on the diagram to place the sensor'}
+          {tapCoordinate ? 'Location selected. Tap or use arrows to adjust.' : 'Tap or use arrow keys to place the sensor'}
         </span>
         {tapCoordinate && (
           <span className="font-mono text-brand-600">
@@ -68,8 +108,12 @@ export const ImageTapRenderer: React.FC<ImageTapRendererProps> = ({
       {/* Interactive Canvas */}
       <div
         ref={containerRef}
+        role="application"
+        tabIndex={isSubmitted ? -1 : 0}
+        aria-label={`${question.question}. Use arrow keys to reposition sensor, or click directly on the diagram.`}
         onPointerDown={handlePointerDown}
-        className={`relative w-full aspect-[4/3.5] max-h-[360px] bg-slate-50 rounded-2xl border-2 overflow-hidden select-none touch-none ${
+        onKeyDown={handleKeyDown}
+        className={`relative w-full aspect-[4/3.5] max-h-[360px] bg-slate-50 rounded-2xl border-2 overflow-hidden select-none touch-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-hidden ${
           isSubmitted
             ? 'border-slate-200 cursor-default'
             : 'border-slate-300 hover:border-brand-500 cursor-crosshair active:border-brand-600'
@@ -125,7 +169,11 @@ export const ImageTapRenderer: React.FC<ImageTapRendererProps> = ({
             }}
           >
             {label && (
-              <span className="absolute -top-6 left-0 text-[10px] font-bold bg-slate-900 text-white px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+              <span
+                className={`absolute text-[10px] font-bold bg-slate-900 text-white px-1.5 py-0.5 rounded shadow whitespace-nowrap max-w-[180px] truncate ${
+                  y_min_percent < 12 ? 'top-full mt-1' : '-top-6'
+                } ${x_min_percent > 65 ? 'right-0' : 'left-0'}`}
+              >
                 {label}
               </span>
             )}

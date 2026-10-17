@@ -3,7 +3,7 @@ import { AnswerEvaluationResult } from '../../models/question.types';
 import { ResultBanner } from './ResultBanner';
 import { MicroLearningSheet } from './MicroLearningSheet';
 import { Button } from '../common/Button';
-import { ArrowRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useBottomSheetGesture } from '../../hooks/useBottomSheetGesture';
 
 export interface FeedbackDrawerProps {
@@ -11,6 +11,7 @@ export interface FeedbackDrawerProps {
   isOpen: boolean;
   onContinue: () => void;
   isLastQuestion?: boolean;
+  continueLabel?: string;
 }
 
 export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
@@ -18,6 +19,7 @@ export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
   isOpen,
   onContinue,
   isLastQuestion = false,
+  continueLabel,
 }) => {
   const {
     sheetState,
@@ -54,7 +56,7 @@ export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
   return (
     <footer
       {...containerProps}
-      className={`shrink-0 w-full max-w-md mx-auto rounded-t-3xl border-t-2 flex flex-col shadow-float z-30 touch-manipulation select-none ${
+      className={`shrink-0 w-full max-w-md mx-auto rounded-t-3xl border-t-2 flex flex-col shadow-float z-30 touch-manipulation ${
         !isDragging ? 'transition-[max-height,height,transform] duration-300 ease-out' : ''
       } ${heightClasses} ${
         isCorrect
@@ -83,7 +85,7 @@ export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
             toggleSheetState();
           }
         }}
-        className="w-full flex flex-col items-center justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing touch-none select-none group focus-visible:outline-hidden"
+        className="w-full flex items-center justify-center py-2 cursor-grab active:cursor-grabbing touch-none select-none group focus-visible:outline-hidden"
       >
         {/* Visual Pill Indicator */}
         <div
@@ -93,20 +95,6 @@ export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
               : 'bg-rose-600/35 group-hover:bg-rose-600/60 group-active:scale-x-110'
           }`}
         />
-        {/* Subtle expansion hint text */}
-        <div className="flex items-center gap-1 text-[10px] font-bold opacity-60 mt-0.5">
-          {isExpanded ? (
-            <>
-              <span>Swipe down to collapse</span>
-              <ChevronDown className="w-3 h-3" />
-            </>
-          ) : (
-            <>
-              <span>Swipe up for full breakdown</span>
-              <ChevronUp className="w-3 h-3" />
-            </>
-          )}
-        </div>
       </div>
 
       {/* Top Status Banner (shrink-0) */}
@@ -135,7 +123,7 @@ export const FeedbackDrawer: React.FC<FeedbackDrawerProps> = ({
           iconPosition="right"
           className="font-bold min-h-[48px] sm:min-h-[52px]"
         >
-          {isLastQuestion ? 'Complete Session' : 'Continue'}
+          {continueLabel || (isLastQuestion ? 'Complete Session' : 'Continue')}
         </Button>
       </div>
     </footer>

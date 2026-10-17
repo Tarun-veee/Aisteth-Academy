@@ -32,7 +32,7 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
   isSubmitted,
   eliminatedOptions = [],
 }) => {
-  switch (question.type) {
+  switch (question?.type) {
     case 'MCQ':
       return (
         <MCQRenderer

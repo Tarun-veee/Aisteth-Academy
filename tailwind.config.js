@@ -25,7 +25,7 @@ export default {
         content: {
           primary: '#0F172A',
           secondary: '#475569',
-          muted: '#94A3B8',
+          muted: '#64748B',
         },
         status: {
           success: '#16A34A',

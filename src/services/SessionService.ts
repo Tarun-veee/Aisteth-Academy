@@ -1,26 +1,24 @@
 /**
  * AiSteth Academy — Client Session & Progression Service
- * Specification: Frozen Three-Power-Up System & Client-Authoritative Daily Session Lifecycle
- *
- * Append-only attempt logger and daily session lifecycle service.
- * Active power-ups: 50/50, LEARN, STREAK SHIELD.
- * HINT and RETRY are permanently removed.
+ * Specification: Zero Firebase SDK in Frontend — Layered Node.js/Express REST Architecture
  */
 
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-  increment,
-  arrayUnion
-} from 'firebase/firestore';
-import { db } from './firebase';
 import {
   getResolvedCalendarDate,
   selectSessionQuestions
 } from '../utils/sessionSelection';
+import { sessionApi, RecordAttemptApiResponse } from '../api/sessionApi';
+import { BranchState } from '../models/session.types';
+
+/**
+ * Generates the canonical session ID standard for trainee daily sessions.
+ */
+export function generateCanonicalSessionId(
+  uid: string,
+  dateStr: string = getResolvedCalendarDate()
+): string {
+  return `daily_${dateStr}_${uid.substring(0, 8)}`;
+}
 
 export interface DailySessionDoc {
   sessionId: string;
@@ -40,9 +38,13 @@ export interface DailySessionDoc {
     FIFTY_FIFTY: string[];
     LEARN: string[];
   };
-  startedAt: any;
-  createdAt: any;
-  updatedAt: any;
+  branchState?: BranchState;
+  activeMainQuestionId?: string;
+  activeFollowUpQuestionId?: string | null;
+  isReattempt?: boolean;
+  startedAt?: any;
+  createdAt?: any;
+  updatedAt?: any;
   completedAt?: any;
 }
 
@@ -59,35 +61,33 @@ export interface AttemptDoc {
   xpAwarded: number;
   powerUpsActive: string[];
   clientTimestamp: number;
-  createdAt: any;
-  serverTimestamp: any;
+  createdAt?: any;
+  serverTimestamp?: any;
 }
 
 export class SessionService {
   private finalizingSessionIds = new Set<string>();
 
   /**
-   * Starts or resumes a daily session for a user on a given local date.
+   * Starts or resumes a daily session via Express Backend API (/api/v1/sessions/today).
    */
   public async startDailySession(
     uid: string,
     dateStr: string = getResolvedCalendarDate()
   ): Promise<DailySessionDoc> {
-    const sessionId = `daily_${dateStr}_${uid.substring(0, 8)}`;
-    const sessionRef = doc(db, 'users', uid, 'dailySessions', sessionId);
+    const sessionId = generateCanonicalSessionId(uid, dateStr);
 
     try {
-      const snap = await getDoc(sessionRef);
-      if (snap.exists()) {
-        return snap.data() as DailySessionDoc;
+      const res = await sessionApi.getTodaySession(dateStr);
+      if (res && res.session) {
+        return res.session as DailySessionDoc;
       }
     } catch (err) {
-      console.warn('Could not read existing daily session:', err);
+      console.warn('[SessionService] Backend startDailySession warning:', err);
     }
 
-    // Generate new 10-question set deterministically
+    // Local fallback for offline mode or test mock runner
     const selectedQuestionIds = selectSessionQuestions(dateStr);
-
     const newSession: DailySessionDoc = {
       sessionId,
       uid,
@@ -106,112 +106,63 @@ export class SessionService {
         FIFTY_FIFTY: [],
         LEARN: [],
       },
-      startedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      branchState: 'MAIN',
+      startedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
-
-    try {
-      await setDoc(sessionRef, newSession);
-    } catch (err) {
-      console.error('Failed to create dailySession in Firestore:', err);
-    }
 
     return newSession;
   }
 
   /**
-   * Submits an append-only attempt record and updates the active session.
-   * Trainee answers are final upon submission (RETRY is permanently removed).
+   * Submits an append-only attempt record via Express Backend API (/api/v1/sessions/today/attempts).
+   * Server-authoritative: passes idempotency key, branchState, and payload to backend.
+   * Throws on failure without fake attempt ID fallback.
    */
   public async recordAttempt(
-    uid: string,
+    _uid: string,
     sessionId: string,
     payload: {
       questionId: string;
       questionIndex: number;
       userAnswerPayload: Record<string, any>;
-      result: 'CORRECT' | 'INCORRECT';
-      xpAwarded: number;
       powerUpsActive?: string[];
+      idempotencyKey?: string;
+      selectedOption?: any;
+      branchState?: BranchState;
+      result?: 'CORRECT' | 'INCORRECT';
+      xpAwarded?: number;
       isSessionComplete?: boolean;
     }
-  ): Promise<string> {
-    const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const attemptRef = doc(db, 'users', uid, 'attempts', attemptId);
-
-    const attemptDoc: AttemptDoc = {
-      attemptId,
-      dailySessionId: sessionId,
-      uid,
-      userId: uid,
+  ): Promise<RecordAttemptApiResponse> {
+    const res = await sessionApi.recordAttempt({
+      sessionId,
       questionId: payload.questionId,
-      contentReleaseId: 'rel_v1_0_0',
       questionIndex: payload.questionIndex,
-      userAnswerPayload: payload.userAnswerPayload,
-      result: payload.result,
-      xpAwarded: payload.xpAwarded,
-      powerUpsActive: payload.powerUpsActive || [],
-      clientTimestamp: Date.now(),
-      createdAt: serverTimestamp(),
-      serverTimestamp: serverTimestamp(),
-    };
+      userAnswerPayload: payload.userAnswerPayload as any,
+      powerUpsActive: payload.powerUpsActive,
+      idempotencyKey: payload.idempotencyKey,
+      selectedOption: payload.selectedOption,
+      branchState: payload.branchState,
+      isSessionComplete: payload.isSessionComplete,
+    });
 
-    // 1. Write append-only attempt
-    try {
-      await setDoc(attemptRef, attemptDoc);
-    } catch (err) {
-      console.error('Failed to write attempt to Firestore:', err);
-    }
-
-    // 2. Update session state
-    try {
-      const sessionRef = doc(db, 'users', uid, 'dailySessions', sessionId);
-      const updates: Record<string, any> = {
-        currentQuestionIndex: Math.min(payload.questionIndex + 1, 9),
-        totalXpEarned: increment(payload.xpAwarded),
-        updatedAt: serverTimestamp(),
-      };
-
-      if (payload.result === 'CORRECT') {
-        updates.correctCount = increment(1);
-      }
-
-      if (payload.powerUpsActive && payload.powerUpsActive.length > 0) {
-        if (payload.powerUpsActive.includes('FIFTY_FIFTY')) {
-          updates['powerUpsUsed.FIFTY_FIFTY'] = arrayUnion(payload.questionId);
-        }
-        if (payload.powerUpsActive.includes('LEARN')) {
-          updates['powerUpsUsed.LEARN'] = arrayUnion(payload.questionId);
-        }
-      }
-
-      if (payload.isSessionComplete || payload.questionIndex >= 9) {
-        updates.status = 'QUESTIONS_COMPLETED';
-        updates.questionsCompleted = true;
-      }
-
-      await updateDoc(sessionRef, updates);
-    } catch (err) {
-      console.warn('Failed to update dailySession state:', err);
-    }
-
-    return attemptId;
+    return res;
   }
 
+
   /**
-   * Finalizes the daily session and increments trainee progression in Firestore.
-   * Strictly idempotent: guards against duplicate calls, double-clicks, network retries, and refresh cycles.
-   * If session is already finalized (or rules reject updating completed session), progression is not re-incremented.
+   * Finalizes the daily session atomically via Express Backend API (/api/v1/sessions/today/finalize).
+   * Guarded against duplicate in-flight calls and double-clicks.
    */
   public async finalizeSession(
-    uid: string,
+    _uid: string,
     sessionId: string,
     totalXpEarned: number,
     correctCount: number = 0,
     totalQuestions: number = 10
   ): Promise<boolean> {
-    // 1. In-memory concurrency guard: Prevent duplicate in-flight requests for same session
     if (this.finalizingSessionIds.has(sessionId)) {
       console.info(`[SessionService] Session ${sessionId} finalization already in-flight. Skipping duplicate call.`);
       return false;
@@ -219,73 +170,21 @@ export class SessionService {
     this.finalizingSessionIds.add(sessionId);
 
     try {
-      const sessionRef = doc(db, 'users', uid, 'dailySessions', sessionId);
-      const userRef = doc(db, 'users', uid);
+      const res = await sessionApi.finalizeSession({
+        sessionId,
+        totalXpEarned,
+        correctCount,
+        totalQuestions,
+      });
 
-      // 2. Pre-check: Inspect current session state in Firestore
-      try {
-        const sessionSnap = await getDoc(sessionRef);
-        if (!sessionSnap.exists()) {
-          console.warn(`[SessionService] Session ${sessionId} does not exist. Aborting finalization.`);
-          return false;
-        }
-
-        const sessionData = sessionSnap.data();
-        const terminalStatuses = ['COMPLETED', 'REVIEW_COMPLETED', 'REVIEW_VIEWED', 'QUESTIONS_COMPLETED'];
-        if (terminalStatuses.includes(sessionData?.status) || sessionData?.reviewViewed === true) {
-          console.info(`[SessionService] Session ${sessionId} is already finalized (status: ${sessionData?.status}). Skipping duplicate finalization.`);
-          return false;
-        }
-      } catch (checkErr) {
-        console.warn(`[SessionService] Error inspecting session state for ${sessionId}:`, checkErr);
-      }
-
-      // 3. Atomically transition session status to REVIEW_COMPLETED.
-      // Firestore Security Rules strictly reject this update if status is already COMPLETED / REVIEW_COMPLETED.
-      try {
-        await updateDoc(sessionRef, {
-          status: 'REVIEW_COMPLETED',
-          reviewViewed: true,
-          completedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        // If Firestore rules or concurrent write rejected the update, ABORT immediately.
-        console.warn(`[SessionService] Failed or blocked transition of dailySession ${sessionId} to REVIEW_COMPLETED. Aborting progression update:`, err);
+      if (res.alreadyFinalized) {
+        console.info(`[SessionService] Session ${sessionId} is already finalized. Skipping duplicate finalization.`);
         return false;
       }
 
-      // 4. Update trainee progression in users/{uid} ONLY after session transition succeeded
-      try {
-        const todayDateStr = getResolvedCalendarDate();
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          const currentLearningState = data.learningState || {};
-          const oldXp = currentLearningState.totalXp || 0;
-          const oldStreak = currentLearningState.currentStreak || 0;
-          const oldSessions = currentLearningState.completedSessionsCount || 0;
-          const oldQuestions = currentLearningState.completedQuestionsCount || 0;
-          const oldCorrect = currentLearningState.totalCorrectAnswersCount || 0;
-          const oldLongest = currentLearningState.longestStreak || 0;
-          const newStreak = oldStreak + 1;
-
-          await updateDoc(userRef, {
-            'learningState.totalXp': oldXp + Math.min(totalXpEarned, 200),
-            'learningState.currentStreak': newStreak,
-            'learningState.completedSessionsCount': oldSessions + 1,
-            'learningState.completedQuestionsCount': oldQuestions + totalQuestions,
-            'learningState.totalCorrectAnswersCount': oldCorrect + correctCount,
-            'learningState.longestStreak': Math.max(oldLongest, newStreak),
-            'learningState.lastActiveDate': todayDateStr,
-            updatedAt: serverTimestamp(),
-          });
-          return true;
-        }
-      } catch (err) {
-        console.warn('[SessionService] Failed to update user progression:', err);
-      }
-
+      return Boolean(res.success);
+    } catch (err) {
+      console.warn(`[SessionService] Backend finalizeSession failed for ${sessionId}:`, err);
       return false;
     } finally {
       this.finalizingSessionIds.delete(sessionId);

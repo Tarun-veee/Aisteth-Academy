@@ -24,11 +24,22 @@ export const MCQRenderer: React.FC<MCQRendererProps> = ({
   const selectedOption =
     currentAnswer && currentAnswer.type === 'MCQ' ? currentAnswer.selected_option : null;
 
+  const getOptionText = (key: OptionKey): string => {
+    if (typeof question[key] === 'string' && question[key].length > 0) {
+      return question[key];
+    }
+    const optObj = (question as any).options;
+    if (optObj && typeof optObj[key] === 'string') {
+      return optObj[key];
+    }
+    return '';
+  };
+
   const options: { key: OptionKey; label: string; text: string }[] = [
-    { key: 'option_a', label: 'A', text: question.option_a },
-    { key: 'option_b', label: 'B', text: question.option_b },
-    { key: 'option_c', label: 'C', text: question.option_c },
-    { key: 'option_d', label: 'D', text: question.option_d },
+    { key: 'option_a', label: 'A', text: getOptionText('option_a') },
+    { key: 'option_b', label: 'B', text: getOptionText('option_b') },
+    { key: 'option_c', label: 'C', text: getOptionText('option_c') },
+    { key: 'option_d', label: 'D', text: getOptionText('option_d') },
   ];
 
   const handleSelect = (key: OptionKey) => {
@@ -55,11 +66,11 @@ export const MCQRenderer: React.FC<MCQRendererProps> = ({
           if (isCorrectSolution) {
             cardStyle = 'bg-status-successBg border-status-success text-status-success shadow-xs';
             badgeStyle = 'bg-status-success text-white border-transparent';
-            icon = <Check className="w-5 h-5 text-status-success shrink-0" />;
+            icon = <Check className="w-5 h-5 text-status-success shrink-0 mt-0.5" />;
           } else if (isUserIncorrectSelection) {
             cardStyle = 'bg-status-errorBg border-status-error text-status-error';
             badgeStyle = 'bg-status-error text-white border-transparent';
-            icon = <X className="w-5 h-5 text-status-error shrink-0" />;
+            icon = <X className="w-5 h-5 text-status-error shrink-0 mt-0.5" />;
           } else {
             cardStyle = 'bg-slate-50 border-slate-200 opacity-50';
           }
@@ -77,7 +88,7 @@ export const MCQRenderer: React.FC<MCQRendererProps> = ({
             type="button"
             onClick={() => handleSelect(key)}
             disabled={isSubmitted || isEliminated}
-            className={`flex items-center gap-3 p-3.5 sm:p-4 rounded-2xl border-2 text-left transition-all duration-150 min-h-[52px] sm:min-h-[58px] select-none ${
+            className={`flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border-2 text-left transition-all duration-150 min-h-[52px] sm:min-h-[58px] select-none ${
               !isSubmitted && !isEliminated
                 ? 'cursor-pointer active:scale-[0.99]'
                 : 'cursor-default'
@@ -92,14 +103,14 @@ export const MCQRenderer: React.FC<MCQRendererProps> = ({
           >
             {/* Option Badge (A, B, C, D) */}
             <span
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${badgeStyle}`}
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border mt-0.5 ${badgeStyle}`}
             >
               {label}
             </span>
 
             {/* Option Text */}
             <span
-              className={`flex-1 text-sm sm:text-base font-medium leading-snug ${
+              className={`flex-1 text-sm sm:text-base font-medium leading-snug pt-0.5 sm:pt-1 ${
                 isEliminated ? 'text-slate-400 line-through decoration-slate-300' : 'text-content-primary'
               }`}
             >
@@ -108,7 +119,7 @@ export const MCQRenderer: React.FC<MCQRendererProps> = ({
 
             {/* 50/50 Eliminated Tag */}
             {isEliminated && !isSubmitted && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md shrink-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-200/70 px-2 py-0.5 rounded-md shrink-0 mt-0.5">
                 Eliminated
               </span>
             )}

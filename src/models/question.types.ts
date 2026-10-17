@@ -44,6 +44,7 @@ export const QUESTION_CATEGORIES: Record<QuestionCategory, { label: string; desc
 
 export interface BaseQuestion {
   question_id: string;
+  questionId?: string;
   category: QuestionCategory;
   type: QuestionType;
   difficulty: DifficultyLevel;
@@ -54,7 +55,16 @@ export interface BaseQuestion {
   clinician_validated: boolean;
   source: 'DEMO' | 'CLINICAL' | 'MEDGEMMA';
   version: string;
+  question_type?: 'Primary' | 'Follow-Up';
+  follow_up_for?: string | null;
+  Question_Type?: 'Primary' | 'Follow-Up';
+  Follow_Up_For?: string | null;
+  topic?: string;
+  Topic?: string;
+  difficulty_rank?: number;
+  Difficulty_Rank?: number;
 }
+
 
 // 1. MCQ Schema
 export interface MCQQuestion extends BaseQuestion {
@@ -63,7 +73,13 @@ export interface MCQQuestion extends BaseQuestion {
   option_b: string;
   option_c: string;
   option_d: string;
-  correct_answer: 'option_a' | 'option_b' | 'option_c' | 'option_d';
+  options?: {
+    option_a: string;
+    option_b: string;
+    option_c: string;
+    option_d: string;
+  };
+  correct_answer?: 'option_a' | 'option_b' | 'option_c' | 'option_d';
 }
 
 // 2. True / False Schema
@@ -141,3 +157,52 @@ export interface AnswerEvaluationResult {
   question_id: string;
   awarded_xp: number;
 }
+
+/**
+ * Canonical Question Normalizer.
+ * Maps API DTOs (e.g. SafeQuestionDTO with questionId, nested options)
+ * to client Question domain models while strictly preserving unsupported
+ * or unknown question types so genuinely malformed data fails closed safely.
+ */
+export function normalizeQuestion(raw: any): Question {
+  if (!raw || typeof raw !== 'object') return raw;
+
+  const qId = raw.question_id || raw.questionId || '';
+  // Preserve raw.type if defined (including unknown types for fail-closed validation).
+  // If raw.type is absent, detect MCQ only if option fields are present.
+  const hasOptions = Boolean(raw.options?.option_a || raw.option_a);
+  const type: QuestionType | undefined = raw.type ?? (hasOptions ? 'MCQ' : undefined);
+
+  const optionsObj = raw.options || {};
+  const option_a = raw.option_a || optionsObj.option_a || '';
+  const option_b = raw.option_b || optionsObj.option_b || '';
+  const option_c = raw.option_c || optionsObj.option_c || '';
+  const option_d = raw.option_d || optionsObj.option_d || '';
+  const question_type = raw.question_type || raw.questionType || (qId.endsWith('-PR') ? 'Follow-Up' : 'Primary');
+  const follow_up_for = raw.follow_up_for !== undefined ? raw.follow_up_for : (raw.followUpFor !== undefined ? raw.followUpFor : null);
+
+  return {
+    ...raw,
+    question_id: qId,
+    questionId: qId,
+    type: type as QuestionType,
+    category: raw.category || 'HEART_RECORDING',
+    difficulty: raw.difficulty || 'BEGINNER',
+    question: raw.question || '',
+    question_type,
+    Question_Type: question_type,
+    follow_up_for,
+    Follow_Up_For: follow_up_for,
+    option_a,
+    option_b,
+    option_c,
+    option_d,
+    options: {
+      option_a,
+      option_b,
+      option_c,
+      option_d,
+    },
+  } as Question;
+}
+

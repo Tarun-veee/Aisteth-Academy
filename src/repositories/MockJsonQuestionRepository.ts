@@ -58,7 +58,16 @@ export class MockJsonQuestionRepository implements IQuestionRepository {
 
     return selected.slice(0, count);
   }
+
+  async getFollowUpQuestion(mainQuestionId: string): Promise<Question | null> {
+    if (!mainQuestionId) return null;
+    const found = this.questions.find(
+      (q) => q.follow_up_for === mainQuestionId || (q as any).Follow_Up_For === mainQuestionId
+    );
+    return found ? JSON.parse(JSON.stringify(found)) : null;
+  }
 }
+
 
 // Export singleton instance for app-wide use
 export const defaultQuestionRepository = new MockJsonQuestionRepository();

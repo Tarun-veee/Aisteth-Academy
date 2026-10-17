@@ -300,4 +300,19 @@ describe('Simplified & Compact ProfileScreen for ASHA Health Workers', () => {
 
     expect(html).toContain('min-h-[48px]');
   });
+
+  // 14. Verification of Header non-zero stats (TEST-002)
+  it('renders Header with user real non-zero streak and XP (TEST-002)', () => {
+    const html = renderToString(
+      React.createElement(ProfileScreen, {
+        userProfile: userAProfile,
+        userStats: userAStats,
+        onBack: () => {},
+      })
+    );
+
+    const cleanHtml = html.replace(/<!-- -->/g, '');
+    expect(cleanHtml).toContain('1');
+    expect(cleanHtml).toContain('165');
+  });
 });

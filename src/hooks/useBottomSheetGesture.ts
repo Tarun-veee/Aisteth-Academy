@@ -72,6 +72,11 @@ export function useBottomSheetGesture({
   // Gesture Start from Drag Handle / Header Area
   const handlePointerDownHandle = useCallback(
     (e: React.PointerEvent) => {
+      if (e.currentTarget && typeof (e.currentTarget as Element).setPointerCapture === 'function') {
+        try {
+          (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        } catch {}
+      }
       startYRef.current = e.clientY;
       startTimeRef.current = performance.now();
       isGestureActiveRef.current = true;
@@ -85,6 +90,11 @@ export function useBottomSheetGesture({
   // Gesture Start from Scrollable Content Area
   const handlePointerDownContent = useCallback(
     (e: React.PointerEvent) => {
+      if (e.currentTarget && typeof (e.currentTarget as Element).setPointerCapture === 'function') {
+        try {
+          (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        } catch {}
+      }
       startYRef.current = e.clientY;
       startTimeRef.current = performance.now();
       isGestureActiveRef.current = true;
@@ -129,6 +139,14 @@ export function useBottomSheetGesture({
   // Gesture End / Release
   const handlePointerEnd = useCallback(
     (e: React.PointerEvent) => {
+      if (e.currentTarget && typeof (e.currentTarget as Element).releasePointerCapture === 'function') {
+        try {
+          if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) {
+            (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+          }
+        } catch {}
+      }
+
       if (!isGestureActiveRef.current) return;
 
       const currentY = e.clientY;

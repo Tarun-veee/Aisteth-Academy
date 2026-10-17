@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Question,
   UserAnswerPayload,
@@ -12,7 +12,7 @@ import { FeedbackDrawer } from '../components/feedback/FeedbackDrawer';
 import { ProgressBar } from '../components/common/ProgressBar';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
-import { X, Check, Lightbulb, Lock, Sparkles } from 'lucide-react';
+import { X, Check, Lightbulb, Lock, Sparkles, RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
 
 export interface DailySessionScreenProps {
   session: SessionState;
@@ -24,6 +24,8 @@ export interface DailySessionScreenProps {
   onApplyLearn: () => void;
   onNextQuestion: () => void;
   onExitSession: () => void;
+  onRetry?: () => void;
+  isLoading?: boolean;
 }
 
 export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
@@ -36,13 +38,75 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
   onApplyLearn,
   onNextQuestion,
   onExitSession,
+  onRetry,
+  isLoading = false,
 }) => {
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
+  // Close exit modal on Escape key press (INT-003)
+  useEffect(() => {
+    if (!showExitConfirm) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowExitConfirm(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showExitConfirm]);
+
   if (!currentQuestion) {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full border-4 border-brand-primary/20 border-t-brand-primary animate-spin" />
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-content-primary">Loading Question</h3>
+            <p className="text-sm text-content-secondary">Synchronizing your daily learning session...</p>
+          </div>
+          <button
+            type="button"
+            onClick={onExitSession}
+            className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-content-secondary hover:text-content-primary py-2 px-3 rounded-lg border border-slate-200"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Dashboard
+          </button>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex items-center justify-center h-full p-4">
-        <p className="text-sm font-semibold text-content-secondary">Loading question...</p>
+      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 border border-amber-200 shadow-sm">
+          <AlertTriangle className="w-7 h-7" />
+        </div>
+        <h3 className="text-lg font-bold text-content-primary mb-1">
+          Unable to Load Question
+        </h3>
+        <p className="text-sm text-content-secondary max-w-sm mb-6">
+          {session.submissionError || 'The question could not be loaded from the server. Please check your backend connection and retry.'}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+          {onRetry && (
+            <Button
+              variant="primary"
+              className="w-full flex items-center justify-center gap-2"
+              onClick={onRetry}
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            className="w-full flex items-center justify-center gap-2 border border-slate-200"
+            onClick={onExitSession}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
@@ -110,8 +174,18 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
           >
             {currentQuestion.difficulty}
           </Badge>
+          {session.branchState === 'FOLLOW_UP' && (
+            <Badge variant="warning" size="sm">
+              Follow-Up Practice
+            </Badge>
+          )}
+          {session.branchState === 'REATTEMPT_MAIN' && (
+            <Badge variant="brand" size="sm">
+              Primary Re-attempt
+            </Badge>
+          )}
           <span className="text-[11px] font-mono text-content-muted ml-auto">
-            {currentQuestion.question_id}
+            {currentQuestion.question_id || (currentQuestion as any).questionId}
           </span>
         </div>
 
@@ -152,8 +226,8 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
         </div>
       </main>
 
-      {/* In-Session Power-Up Bar (Displayed before submission) */}
-      {!isSubmitted && (
+      {/* In-Session Power-Up Bar (Displayed before submission, disabled in FOLLOW_UP) */}
+      {!isSubmitted && session.branchState !== 'FOLLOW_UP' && (
         <div className="shrink-0 bg-surface-white/95 border-t border-slate-100 px-3.5 py-1.5 z-20">
           <div className="flex items-center justify-between gap-2 max-w-md mx-auto w-full">
             {/* 50/50 Power-Up Button (Only rendered for MCQ questions) */}
@@ -162,7 +236,7 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
                 type="button"
                 onClick={onApplyFiftyFifty}
                 disabled={!fiftyFiftyCheck.canUse}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold border transition-all min-h-[44px] ${
+                className={`flex-1 flex items-center justify-center gap-1 sm:gap-1.5 px-2 py-2 sm:px-2.5 rounded-xl text-[11px] sm:text-xs font-bold border transition-all min-h-[44px] ${
                   fiftyFiftyCheck.canUse
                     ? 'bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100 active:scale-[0.98] shadow-2xs cursor-pointer'
                     : isFiftyFiftyUsed
@@ -194,7 +268,7 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
               type="button"
               onClick={onApplyLearn}
               disabled={!learnCheck.canUse}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold border transition-all min-h-[44px] ${
+              className={`flex-1 flex items-center justify-center gap-1 sm:gap-1.5 px-2 py-2 sm:px-2.5 rounded-xl text-[11px] sm:text-xs font-bold border transition-all min-h-[44px] ${
                 learnCheck.canUse
                   ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 active:scale-[0.98] shadow-2xs cursor-pointer'
                   : isLearnRevealed
@@ -227,17 +301,22 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
       {!isSubmitted ? (
         <footer className="shrink-0 bg-surface-white/95 backdrop-blur-md border-t border-slate-200/80 p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] z-20">
           <div className="w-full max-w-md mx-auto">
+            {session.submissionError && (
+              <div className="mb-2.5 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-semibold animate-in fade-in duration-150">
+                {session.submissionError}
+              </div>
+            )}
             <Button
               variant="primary"
               fullWidth
               size="lg"
-              disabled={!canSubmit}
+              disabled={!canSubmit || Boolean(session.isSubmitting)}
               onClick={onSubmitAnswer}
               icon={<Check className="w-5 h-5 ml-0.5" />}
               iconPosition="right"
               className="font-bold min-h-[50px] sm:min-h-[54px]"
             >
-              Check Answer
+              {session.isSubmitting ? 'Evaluating...' : 'Check Answer'}
             </Button>
           </div>
         </footer>
@@ -247,14 +326,31 @@ export const DailySessionScreen: React.FC<DailySessionScreenProps> = ({
           isOpen={isSubmitted}
           onContinue={onNextQuestion}
           isLastQuestion={isLastQuestion}
+          continueLabel={
+            session.serverPendingTransition?.isSessionComplete || isLastQuestion
+              ? 'Complete Session'
+              : session.serverPendingTransition?.branchState === 'FOLLOW_UP'
+              ? 'Start Follow-Up Exercise'
+              : session.serverPendingTransition?.branchState === 'REATTEMPT_MAIN'
+              ? 'Re-attempt Main Question'
+              : undefined
+          }
         />
       )}
 
       {/* Exit Confirmation Modal */}
       {showExitConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="exit-modal-title"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowExitConfirm(false);
+          }}
+        >
           <div className="w-full max-w-sm bg-surface-white rounded-3xl p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-lg font-bold text-content-primary mb-2">
+            <h3 id="exit-modal-title" className="text-lg font-bold text-content-primary mb-2">
               Leave Current Training?
             </h3>
             <p className="text-xs sm:text-sm text-content-secondary mb-5">

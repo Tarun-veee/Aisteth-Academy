@@ -94,9 +94,6 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               <p className="text-xs text-emerald-800 leading-relaxed">
                 {successMessage}
               </p>
-              <p className="text-[11px] text-emerald-700/90 leading-snug">
-                (Prototype notice: Backend email delivery will be connected with Firebase in Phase 3. You may return to Sign In and enter your credentials.)
-              </p>
             </div>
 
             <Button

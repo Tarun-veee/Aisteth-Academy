@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { ProgressionService } from '../src/services/ProgressionService';
 import { PowerUpService } from '../src/services/PowerUpService';
 import { UserStats } from '../src/models/session.types';
 import { HomeScreen } from '../src/views/HomeScreen';
 import { ProfileScreen } from '../src/views/ProfileScreen';
+import { ForgotPasswordScreen } from '../src/views/ForgotPasswordScreen';
 
 describe('HomeScreen Progression & Power-Up Services', () => {
   const baseStats: UserStats = {
@@ -291,4 +293,70 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     homeEl.props.onNavigateProfile!();
     expect(navProfileTriggered).toBe(true);
   });
+
+  // 14. Learner-Facing Clean UI Tests: Absence of Clinical Vault and Development Prototype Banners
+  describe('Learner-Facing Clean UI (Absence of Dev Banners & Clinical Vault)', () => {
+    it('HomeScreen strictly omits Clinical Vault: Unsolved Questions card and description', () => {
+      const html = renderToString(
+        React.createElement(HomeScreen, {
+          userStats: { ...baseStats, totalXp: 120, currentStreak: 3 },
+          onStartSession: () => {},
+          onNavigateLeaderboard: () => {},
+        })
+      );
+
+      expect(html).not.toContain('Clinical Vault: Unsolved Questions');
+      expect(html).not.toContain('Review and reinforce concepts from remedial follow-ups');
+      expect(html).not.toContain('Clinical Vault');
+    });
+
+    it('HomeScreen strictly omits Phase 1 Development Prototype and demo content notice', () => {
+      const html = renderToString(
+        React.createElement(HomeScreen, {
+          userStats: { ...baseStats, totalXp: 120, currentStreak: 3 },
+          onStartSession: () => {},
+          onNavigateLeaderboard: () => {},
+        })
+      );
+
+      expect(html).not.toContain('Phase 1 Development Prototype');
+      expect(html).not.toContain('All questions and stethoscope recordings are demonstration content');
+      expect(html).not.toContain('software validation');
+    });
+
+    it('HomeScreen preserves remaining primary learning UI cards', () => {
+      const html = renderToString(
+        React.createElement(HomeScreen, {
+          userStats: { ...baseStats, totalXp: 120, currentStreak: 3 },
+          onStartSession: () => {},
+          onNavigateLeaderboard: () => {},
+        })
+      );
+
+      // Trainee greeting
+      expect(html).toContain('Namaste, Trainee!');
+      // Daily Mission Hero
+      expect(html).toContain('Standard Auscultation Workflow');
+      expect(html).toContain('Daily Mission');
+      // Stats grid
+      expect(html).toContain('Days Streak');
+      expect(html).toContain('Points');
+      expect(html).toContain('Completed');
+      // Leaderboard card
+      expect(html).toContain('Community Leaderboard');
+    });
+
+    it('ForgotPasswordScreen strictly omits prototype notice and phase disclaimers', () => {
+      const html = renderToString(
+        React.createElement(ForgotPasswordScreen, {
+          onNavigateSignIn: () => {},
+        })
+      );
+
+      expect(html).not.toContain('Prototype notice');
+      expect(html).not.toContain('Phase 3');
+      expect(html).not.toContain('Backend email delivery will be connected');
+    });
+  });
 });
+

@@ -4,6 +4,13 @@ import { UserProfile, DEFAULT_USER_STATS, DEFAULT_USER_PROFILE } from '../models
 import { CompetencyProgress, CoreCompetencyArea, CORE_COMPETENCIES } from '../models/progression.types';
 
 export function getLocalTodayDateString(): string {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date') || params.get('sessionDate');
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return dateParam;
+    }
+  }
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');

@@ -9,12 +9,14 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "backend:dev": "npm --prefix backend run dev",
+    "backend:build": "npm --prefix backend run build",
+    "backend:test": "npm --prefix backend test",
     "validate:schema": "node scripts/validate_schema.js",
     "seed:content": "node scripts/seed_content.js",
     "generate:xlsx": "node scripts/generate_template_xlsx.js"
   },
   "dependencies": {
-    "firebase": "^12.19.0",
     "idb": "^8.0.2",
     "lucide-react": "^1.16.0",
     "react": "^18.3.1",

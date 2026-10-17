@@ -51,7 +51,111 @@ export const PROVISIONAL_PROGRESSION_LEVELS: ProgressionLevel[] = [
 
 export const PROGRESSION_LEVELS = PROVISIONAL_PROGRESSION_LEVELS;
 
+export const MAX_LEVEL = 31;
+export const FOUNDATIONAL_XP_THRESHOLD = 310;
+export const XP_PER_MAIN_QUESTION = 10;
+export const TOTAL_CURRICULUM_MAIN_QUESTIONS = 310;
+
+export type XpAwardReason =
+  | 'AWARDED_UNDER_THRESHOLD'
+  | 'THRESHOLD_REACHED_NO_XP'
+  | 'ALREADY_COMPLETED_NO_XP'
+  | 'INCORRECT_NO_XP'
+  | 'FOLLOW_UP_NO_XP';
+
+export interface XpAwardCalculationResult {
+  awardedXp: number;
+  isNewlyCompleted: boolean;
+  reason: XpAwardReason;
+  updatedTotalXp: number;
+}
+
+export interface CalculateMainQuestionXpParams {
+  currentTotalXp: number;
+  questionId: string;
+  lifetimeCompletedQuestionIds?: string[];
+  isCorrect: boolean;
+}
+
 export class ProgressionService {
+  /**
+   * Authoritative check for valid canonical XP:
+   * Must be a finite number greater than or equal to zero.
+   */
+  static isValidXp(xp: unknown): xp is number {
+    return typeof xp === 'number' && Number.isFinite(xp) && xp >= 0;
+  }
+
+  /**
+   * Authoritative Level formula for RBSK Learning Engine Phase 2:
+   * level = min(31, floor(max(0, totalXp) / 10) + 1)
+   */
+  static calculateLevel(totalXp: number): number {
+    const validXp = Math.max(0, isNaN(totalXp) ? 0 : totalXp);
+    return Math.min(MAX_LEVEL, Math.floor(validXp / XP_PER_MAIN_QUESTION) + 1);
+  }
+
+  /**
+   * Main question XP award calculation (Decision 2 Option A).
+   */
+  static calculateMainQuestionXpAward(params: CalculateMainQuestionXpParams): XpAwardCalculationResult {
+    const validXp = Math.max(0, isNaN(params.currentTotalXp) ? 0 : params.currentTotalXp);
+
+    if (!params.isCorrect) {
+      return {
+        awardedXp: 0,
+        isNewlyCompleted: false,
+        reason: 'INCORRECT_NO_XP',
+        updatedTotalXp: validXp,
+      };
+    }
+
+    const ledger = Array.isArray(params.lifetimeCompletedQuestionIds)
+      ? params.lifetimeCompletedQuestionIds
+      : [];
+
+    if (ledger.includes(params.questionId)) {
+      return {
+        awardedXp: 0,
+        isNewlyCompleted: false,
+        reason: 'ALREADY_COMPLETED_NO_XP',
+        updatedTotalXp: validXp,
+      };
+    }
+
+    if (validXp < FOUNDATIONAL_XP_THRESHOLD) {
+      return {
+        awardedXp: XP_PER_MAIN_QUESTION,
+        isNewlyCompleted: true,
+        reason: 'AWARDED_UNDER_THRESHOLD',
+        updatedTotalXp: validXp + XP_PER_MAIN_QUESTION,
+      };
+    }
+
+    return {
+      awardedXp: 0,
+      isNewlyCompleted: true,
+      reason: 'THRESHOLD_REACHED_NO_XP',
+      updatedTotalXp: validXp,
+    };
+  }
+
+  /**
+   * Curriculum completion check:
+   * Returns true ONLY when all 310 actual foundational Main-question IDs have been completed.
+   */
+  static isCurriculumCompleted(
+    lifetimeCompletedQuestionIds?: string[],
+    authoritativeMainQuestionIds?: string[] | readonly string[]
+  ): boolean {
+    if (!Array.isArray(lifetimeCompletedQuestionIds) || lifetimeCompletedQuestionIds.length === 0) return false;
+    const completedSet = new Set(lifetimeCompletedQuestionIds.filter(Boolean));
+    if (Array.isArray(authoritativeMainQuestionIds) && authoritativeMainQuestionIds.length > 0) {
+      return authoritativeMainQuestionIds.every((id) => completedSet.has(id));
+    }
+    return completedSet.size >= TOTAL_CURRICULUM_MAIN_QUESTIONS;
+  }
+
   /**
    * Calculates the learner's progression status based on total XP earned.
    * Deterministic, zero-dependency pure function.

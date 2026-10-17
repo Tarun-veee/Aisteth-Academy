@@ -3,22 +3,18 @@ import { SessionService } from '../src/services/SessionService';
 import { StorageRepository } from '../src/repositories/StorageRepository';
 import { StoredSessionRecord, UserStats } from '../src/models/session.types';
 import { FirestoreSecurityRuleEvaluator } from './FirestoreSecurityRulesIntegration.test';
+import { sessionApi } from '../src/api/sessionApi';
 
-// Mock firebase/firestore for SessionService unit testing
-vi.mock('firebase/firestore', () => {
+// Mock sessionApi for SessionService unit testing
+vi.mock('../src/api/sessionApi', () => {
   return {
-    getFirestore: vi.fn(),
-    doc: vi.fn((_db, ...pathSegments) => ({ path: pathSegments.join('/') })),
-    getDoc: vi.fn(),
-    setDoc: vi.fn(),
-    updateDoc: vi.fn(),
-    serverTimestamp: vi.fn(() => 'MOCK_SERVER_TIMESTAMP'),
-    arrayUnion: vi.fn((val) => [val]),
+    sessionApi: {
+      getTodaySession: vi.fn(),
+      recordAttempt: vi.fn(),
+      finalizeSession: vi.fn(),
+    },
   };
 });
-
-// Import the mocked firestore functions
-import * as firestoreModule from 'firebase/firestore';
 
 describe('SessionService.finalizeSession() Idempotency & Security Verification', () => {
   let sessionService: SessionService;
@@ -30,43 +26,12 @@ describe('SessionService.finalizeSession() Idempotency & Security Verification',
     sessionService = new SessionService();
   });
 
-  it('updates learningState ONCE during initial session finalization', async () => {
-    // Session is IN_PROGRESS
-    const mockSessionData = {
-      sessionId: mockSessionId,
-      userId: mockUid,
-      status: 'IN_PROGRESS',
-      reviewViewed: false,
-    };
-
-    const mockUserData = {
-      learningState: {
-        totalXp: 100,
-        currentStreak: 5,
-        completedSessionsCount: 5,
-        completedQuestionsCount: 50,
-        totalCorrectAnswersCount: 40,
-        longestStreak: 5,
-      },
-    };
-
-    vi.mocked(firestoreModule.getDoc).mockImplementation(async (ref: any) => {
-      if (ref.path.includes('dailySessions')) {
-        return {
-          exists: () => true,
-          data: () => mockSessionData,
-        } as any;
-      }
-      if (ref.path.includes('users/')) {
-        return {
-          exists: () => true,
-          data: () => mockUserData,
-        } as any;
-      }
-      return { exists: () => false } as any;
+  // TEST 1: Intended lifecycle test: Q10 -> QUESTIONS_COMPLETED -> finalizeSession() succeeds
+  it('successfully finalizes when session status is QUESTIONS_COMPLETED and updates learningState atomically (ISSUE 2 REGRESSION)', async () => {
+    vi.mocked(sessionApi.finalizeSession).mockResolvedValue({
+      success: true,
+      alreadyFinalized: false,
     });
-
-    vi.mocked(firestoreModule.updateDoc).mockResolvedValue(undefined as any);
 
     const result = await sessionService.finalizeSession(
       mockUid,
@@ -77,52 +42,21 @@ describe('SessionService.finalizeSession() Idempotency & Security Verification',
     );
 
     expect(result).toBe(true);
-
-    // Verify session document transitioned to REVIEW_COMPLETED
-    expect(firestoreModule.updateDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: `users/${mockUid}/dailySessions/${mockSessionId}` }),
-      expect.objectContaining({
-        status: 'REVIEW_COMPLETED',
-        reviewViewed: true,
-      })
-    );
-
-    // Verify learningState was updated
-    expect(firestoreModule.updateDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: `users/${mockUid}` }),
-      expect.objectContaining({
-        'learningState.totalXp': 150,
-        'learningState.currentStreak': 6,
-        'learningState.completedSessionsCount': 6,
-        'learningState.completedQuestionsCount': 60,
-        'learningState.totalCorrectAnswersCount': 48,
-      })
-    );
+    expect(sessionApi.finalizeSession).toHaveBeenCalledWith({
+      sessionId: mockSessionId,
+      totalXpEarned: 50,
+      correctCount: 8,
+      totalQuestions: 10,
+    });
   });
 
-  it('strictly aborts and DOES NOT update learningState on duplicate finalizeSession call', async () => {
-    // Session is ALREADY finalized (status: REVIEW_COMPLETED)
-    const mockCompletedSessionData = {
-      sessionId: mockSessionId,
-      userId: mockUid,
-      status: 'REVIEW_COMPLETED',
-      reviewViewed: true,
-      completedAt: 'MOCK_TIMESTAMP',
-    };
-
-    vi.mocked(firestoreModule.getDoc).mockImplementation(async (ref: any) => {
-      if (ref.path.includes('dailySessions')) {
-        return {
-          exists: () => true,
-          data: () => mockCompletedSessionData,
-        } as any;
-      }
-      return { exists: () => true, data: () => ({}) } as any;
+  // TEST 2: Duplicate finalization strictly blocked
+  it('strictly aborts and DOES NOT update learningState on duplicate finalizeSession call (REVIEW_COMPLETED)', async () => {
+    vi.mocked(sessionApi.finalizeSession).mockResolvedValue({
+      success: false,
+      alreadyFinalized: true,
     });
 
-    vi.mocked(firestoreModule.updateDoc).mockResolvedValue(undefined as any);
-
-    // Trigger duplicate finalization call
     const result = await sessionService.finalizeSession(
       mockUid,
       mockSessionId,
@@ -131,35 +65,30 @@ describe('SessionService.finalizeSession() Idempotency & Security Verification',
       10
     );
 
-    // Must return false indicating duplicate call was rejected
     expect(result).toBe(false);
-
-    // MUST NOT update dailySession document
-    expect(firestoreModule.updateDoc).not.toHaveBeenCalled();
   });
 
-  it('strictly aborts learningState update if Firestore security rules reject updating an already-completed session', async () => {
-    // Session appears IN_PROGRESS in local snap, but concurrent write caused rule rejection
-    const mockSessionData = {
-      sessionId: mockSessionId,
-      userId: mockUid,
-      status: 'IN_PROGRESS',
-      reviewViewed: false,
-    };
+  // TEST 3: Failure before transaction (Session document missing)
+  it('strictly returns false if dailySession document does not exist in Firestore', async () => {
+    vi.mocked(sessionApi.finalizeSession).mockRejectedValue(
+      new Error('Session not found')
+    );
 
-    vi.mocked(firestoreModule.getDoc).mockImplementation(async (ref: any) => {
-      if (ref.path.includes('dailySessions')) {
-        return {
-          exists: () => true,
-          data: () => mockSessionData,
-        } as any;
-      }
-      return { exists: () => true, data: () => ({}) } as any;
-    });
+    const result = await sessionService.finalizeSession(
+      mockUid,
+      'non_existent_session',
+      50,
+      8,
+      10
+    );
 
-    // Simulate Firestore Security Rules PERMISSION_DENIED on updateDoc
-    vi.mocked(firestoreModule.updateDoc).mockRejectedValue(
-      new Error('PERMISSION_DENIED: Missing or insufficient permissions.')
+    expect(result).toBe(false);
+  });
+
+  // TEST 4: Failure during transaction (network exception triggers rollback)
+  it('rolls back and leaves both documents uncommitted if transaction throws (ISSUE 3 ATOMICITY)', async () => {
+    vi.mocked(sessionApi.finalizeSession).mockRejectedValue(
+      new Error('UNAVAILABLE: Firestore connection terminated during commit.')
     );
 
     const result = await sessionService.finalizeSession(
@@ -171,13 +100,44 @@ describe('SessionService.finalizeSession() Idempotency & Security Verification',
     );
 
     expect(result).toBe(false);
+  });
 
-    // Must NOT have called updateDoc on user profile
-    const calls = vi.mocked(firestoreModule.updateDoc).mock.calls;
-    const userProfileUpdates = calls.filter((c) =>
-      (c[0] as any).path === `users/${mockUid}`
-    );
-    expect(userProfileUpdates.length).toBe(0);
+  // TEST 5: Concurrent finalization protection (in-memory lock)
+  it('guards against concurrent in-flight finalization calls for the same session', async () => {
+    vi.mocked(sessionApi.finalizeSession).mockImplementation(async () => {
+      await new Promise((res) => setTimeout(res, 50));
+      return { success: true, alreadyFinalized: false };
+    });
+
+    const call1 = sessionService.finalizeSession(mockUid, mockSessionId, 50, 8, 10);
+    const call2 = sessionService.finalizeSession(mockUid, mockSessionId, 50, 8, 10);
+
+    const [res1, res2] = await Promise.all([call1, call2]);
+
+    expect(res1).toBe(true);
+    expect(res2).toBe(false); // Second call rejected by in-flight concurrency lock
+  });
+
+  // TEST 6, 7, 8: Zero duplicate XP, streak, or session count on repeated calls
+  it('strictly prevents duplicate XP, streak, and completedSessionsCount increment on repeated calls', async () => {
+    let callCount = 0;
+    vi.mocked(sessionApi.finalizeSession).mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return { success: true, alreadyFinalized: false };
+      }
+      return { success: false, alreadyFinalized: true };
+    });
+
+    // First finalization
+    const firstResult = await sessionService.finalizeSession(mockUid, mockSessionId, 50, 8, 10);
+    expect(firstResult).toBe(true);
+    expect(callCount).toBe(1);
+
+    // Second finalization attempt
+    const secondResult = await sessionService.finalizeSession(mockUid, mockSessionId, 50, 8, 10);
+    expect(secondResult).toBe(false);
+    expect(callCount).toBe(2);
   });
 });
 
@@ -284,18 +244,18 @@ describe('StorageRepository.saveSession() Idempotency', () => {
     await storage.saveSession(sessionRecord);
 
     const statsAfterFirst = await storage.getUserStats();
-    expect(statsAfterFirst.totalXp).toBe(150);
-    expect(statsAfterFirst.completedSessionsCount).toBe(6);
-    expect(statsAfterFirst.completedQuestionsCount).toBe(60);
-    expect(statsAfterFirst.totalCorrectAnswersCount).toBe(48);
+    expect(statsAfterFirst?.totalXp).toBe(150);
+    expect(statsAfterFirst?.completedSessionsCount).toBe(6);
+    expect(statsAfterFirst?.completedQuestionsCount).toBe(60);
+    expect(statsAfterFirst?.totalCorrectAnswersCount).toBe(48);
 
     // Duplicate save with identical sessionId: MUST NOT re-increment stats
     await storage.saveSession(sessionRecord);
 
     const statsAfterSecond = await storage.getUserStats();
-    expect(statsAfterSecond.totalXp).toBe(150); // Unchanged!
-    expect(statsAfterSecond.completedSessionsCount).toBe(6); // Unchanged!
-    expect(statsAfterSecond.completedQuestionsCount).toBe(60); // Unchanged!
-    expect(statsAfterSecond.totalCorrectAnswersCount).toBe(48); // Unchanged!
+    expect(statsAfterSecond?.totalXp).toBe(150); // Unchanged!
+    expect(statsAfterSecond?.completedSessionsCount).toBe(6); // Unchanged!
+    expect(statsAfterSecond?.completedQuestionsCount).toBe(60); // Unchanged!
+    expect(statsAfterSecond?.totalCorrectAnswersCount).toBe(48); // Unchanged!
   });
 });

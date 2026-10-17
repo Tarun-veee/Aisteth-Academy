@@ -100,4 +100,17 @@ describe('Dedicated PowerUpsScreen View', () => {
     el.props.onBack();
     expect(backClicked).toBe(true);
   });
+
+  it('renders Header with real non-zero streak and XP (TEST-002)', () => {
+    const html = renderToString(
+      React.createElement(PowerUpsScreen, {
+        userStats: unlockedStats,
+        onBack: () => {},
+      })
+    );
+
+    const cleanHtml = html.replace(/<!-- -->/g, '');
+    expect(cleanHtml).toContain('32');
+    expect(cleanHtml).toContain('500');
+  });
 });

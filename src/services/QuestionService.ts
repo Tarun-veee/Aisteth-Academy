@@ -4,7 +4,7 @@
  */
 
 import { IQuestionRepository } from '../repositories/IQuestionRepository';
-import { defaultQuestionRepository } from '../repositories/MockJsonQuestionRepository';
+import { defaultApiQuestionRepository } from '../repositories/ApiQuestionRepository';
 import { ISessionGenerator, DummySessionGenerator } from './ISessionGenerator';
 import { Question, QuestionCategory, QuestionType } from '../models/question.types';
 import { SESSION_CONFIG, StoredSessionRecord } from '../models/session.types';
@@ -14,7 +14,7 @@ export class QuestionService {
   private sessionGenerator: ISessionGenerator;
 
   constructor(
-    repository: IQuestionRepository = defaultQuestionRepository,
+    repository: IQuestionRepository = defaultApiQuestionRepository,
     sessionGenerator: ISessionGenerator = new DummySessionGenerator()
   ) {
     this.repository = repository;
@@ -34,6 +34,10 @@ export class QuestionService {
 
   async getQuestionById(questionId: string): Promise<Question | null> {
     return this.repository.getQuestionById(questionId);
+  }
+
+  async getFollowUpQuestion(mainQuestionId: string): Promise<Question | null> {
+    return this.repository.getFollowUpQuestion(mainQuestionId);
   }
 
   async getQuestionsByCategory(category: QuestionCategory): Promise<Question[]> {

@@ -30,4 +30,10 @@ export interface IQuestionRepository {
    * Retrieves a balanced batch of questions for a learning session.
    */
   getSessionQuestions(count: number): Promise<Question[]>;
+
+  /**
+   * Retrieves the remedial follow-up question linked to a main primary question.
+   */
+  getFollowUpQuestion(mainQuestionId: string): Promise<Question | null>;
 }
+

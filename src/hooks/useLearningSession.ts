@@ -1,15 +1,18 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   Question,
   UserAnswerPayload,
-  MCQQuestion
+  MCQQuestion,
+  AnswerEvaluationResult,
+  normalizeQuestion,
 } from '../models/question.types';
 import {
   SessionState,
   StoredSessionRecord,
   SESSION_CONFIG,
   UserStats,
-  DailySessionData
+  DailySessionData,
+  BranchState,
 } from '../models/session.types';
 import { AnswerEvaluator } from '../services/AnswerEvaluator';
 import { PowerUpService } from '../services/PowerUpService';
@@ -17,10 +20,36 @@ import { defaultQuestionService, QuestionService } from '../services/QuestionSer
 import {
   defaultStorageRepository,
   StorageRepository,
-  getLocalTodayDateString
+  getLocalTodayDateString,
 } from '../repositories/StorageRepository';
-import { defaultSessionService, SessionService } from '../services/SessionService';
+import { defaultSessionService, SessionService, generateCanonicalSessionId } from '../services/SessionService';
 import { defaultAuthService } from '../services/AuthService';
+import { sessionApi } from '../api/sessionApi';
+
+/**
+ * Generates an 8 to 64-char alphanumeric nonce matching `[a-zA-Z0-9_-]{8,64}`
+ */
+export function generateSubmissionNonce(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let nonce = '';
+  for (let i = 0; i < 16; i++) {
+    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return nonce;
+}
+
+/**
+ * Generates a canonical idempotency key compliant with backend parser:
+ * ^idem_([a-zA-Z0-9_-]{1,64})_q([0-9]{1,2})_(MAIN|FOLLOW_UP|REATTEMPT_MAIN)_([a-zA-Z0-9_-]{8,64})$
+ */
+export function generateIdempotencyKey(
+  sessionId: string,
+  questionIndex: number,
+  branchState: BranchState,
+  nonce: string = generateSubmissionNonce()
+): string {
+  return `idem_${sessionId}_q${questionIndex}_${branchState}_${nonce}`;
+}
 
 export function useLearningSession(
   questionService: QuestionService = defaultQuestionService,
@@ -40,6 +69,15 @@ export function useLearningSession(
     correctCount: 0,
     questionsCompleted: false,
     reviewViewed: false,
+    branchState: 'MAIN',
+    activeMainQuestionId: undefined,
+    activeFollowUpQuestionId: null,
+    activeFollowUpQuestion: null,
+    isReattempt: false,
+    isSubmitting: false,
+    pendingIdempotencyKey: null,
+    submissionError: null,
+    serverPendingTransition: null,
     startTime: null,
     endTime: null,
     fiftyFiftyEliminatedOptions: {},
@@ -58,6 +96,9 @@ export function useLearningSession(
   });
 
   const [isLoading, setIsLoading] = useState(true);
+  const isSubmittingRef = useRef(false);
+  const pendingIdempotencyKeyRef = useRef<string | null>(null);
+  const isInitializedRef = useRef(false);
 
   // Load user stats and today's session progress on initial mount
   const refreshUserStats = useCallback(async () => {
@@ -70,132 +111,317 @@ export function useLearningSession(
     try {
       await refreshUserStats();
       const todayStr = getLocalTodayDateString();
-      const daily = await storageRepository.getDailySession(todayStr);
+      const currentUid = defaultAuthService.getSession()?.userId;
 
+      // 1. If authenticated, attempt to sync with backend session first
+      if (currentUid) {
+        try {
+          const res = await sessionApi.getTodaySession(todayStr);
+          if (res && res.session) {
+            const s = res.session;
+            const daily = await storageRepository.getDailySession(todayStr);
+            const rawQuestions = Array.isArray(res.questions) && res.questions.length > 0
+              ? res.questions
+              : (daily?.questions && daily.questions.length > 0
+                ? daily.questions
+                : await questionService.createDailySession(SESSION_CONFIG.DEFAULT_SESSION_LENGTH));
+            const serverQuestions = rawQuestions.map(normalizeQuestion);
+
+            const isTerminal = s.status === 'QUESTIONS_COMPLETED' ||
+              s.status === 'REVIEW_COMPLETED' ||
+              s.status === 'REVIEW_VIEWED' ||
+              Boolean(s.questionsCompleted);
+
+            let activeFuQ: Question | null = null;
+            if (s.branchState === 'FOLLOW_UP') {
+              const fuId = s.activeFollowUpQuestionId;
+              activeFuQ = fuId ? await questionService.getQuestionById(fuId) : null;
+              if (!activeFuQ && s.questionIds?.[s.currentQuestionIndex]) {
+                activeFuQ = await questionService.getFollowUpQuestion(s.questionIds[s.currentQuestionIndex]);
+              }
+            }
+
+            // Sync authoritative server session into local IndexedDB
+            if (serverQuestions.length > 0) {
+              const syncedDailyData: DailySessionData = {
+                sessionId: s.sessionId,
+                date: todayStr,
+                status: isTerminal ? 'QUESTIONS_COMPLETED' : 'IN_PROGRESS',
+                questionsCompleted: Boolean(s.questionsCompleted || isTerminal),
+                reviewViewed: Boolean(s.reviewViewed || s.status === 'REVIEW_VIEWED'),
+                currentIndex: s.currentQuestionIndex ?? 0,
+                questions: serverQuestions,
+                history: daily?.history || [],
+                score: s.correctCount ?? 0,
+                totalQuestions: serverQuestions.length,
+                totalXpEarned: s.totalXpEarned ?? 0,
+                correctCount: s.correctCount ?? 0,
+                branchState: s.branchState || 'MAIN',
+                fiftyFiftyEliminatedOptions: daily?.fiftyFiftyEliminatedOptions || {},
+                learnClueRevealed: daily?.learnClueRevealed || {},
+              };
+              await storageRepository.saveDailySession(syncedDailyData);
+            }
+
+            setSession((prev) => {
+              if (
+                (prev.status === 'IN_PROGRESS' || prev.status === 'ANSWER_SUBMITTED') &&
+                prev.questions.length > 0 &&
+                prev.currentIndex === (s.currentQuestionIndex ?? 0) &&
+                prev.branchState === (s.branchState || 'MAIN') &&
+                !prev.submissionError &&
+                (prev.branchState === 'FOLLOW_UP' ? Boolean(prev.activeFollowUpQuestion) : Boolean(prev.questions[prev.currentIndex]))
+              ) {
+                return prev;
+              }
+              return {
+                status: isTerminal ? 'COMPLETED' : (s.status === 'NOT_STARTED' ? 'IDLE' : 'IN_PROGRESS'),
+                dailyStatus: s.status as any,
+                sessionId: s.sessionId,
+                currentIndex: s.currentQuestionIndex ?? 0,
+                questions: serverQuestions,
+                currentAnswer: prev.currentAnswer && prev.currentIndex === s.currentQuestionIndex && prev.branchState === s.branchState ? prev.currentAnswer : null,
+                currentEvaluation: null,
+                history: daily?.history || prev.history || [],
+                totalXpEarned: s.totalXpEarned ?? 0,
+                correctCount: s.correctCount ?? 0,
+                questionsCompleted: Boolean(s.questionsCompleted || isTerminal),
+                reviewViewed: Boolean(s.reviewViewed || s.status === 'REVIEW_VIEWED'),
+                branchState: s.branchState || 'MAIN',
+                activeMainQuestionId: s.activeMainQuestionId,
+                activeFollowUpQuestionId: s.activeFollowUpQuestionId,
+                activeFollowUpQuestion: activeFuQ,
+                isReattempt: s.branchState === 'REATTEMPT_MAIN',
+                isSubmitting: false,
+                pendingIdempotencyKey: null,
+                submissionError: null,
+                serverPendingTransition: null,
+                startTime: isTerminal ? null : (prev.startTime || Date.now()),
+                endTime: isTerminal ? Date.now() : null,
+                fiftyFiftyEliminatedOptions: daily?.fiftyFiftyEliminatedOptions || prev.fiftyFiftyEliminatedOptions || {},
+                learnClueRevealed: daily?.learnClueRevealed || prev.learnClueRevealed || {},
+              };
+            });
+            return;
+          }
+        } catch (serverErr: any) {
+          console.warn('[useLearningSession] Backend initDailySession sync warning:', serverErr);
+          setSession((prev) => ({
+            ...prev,
+            submissionError: prev.questions.length === 0
+              ? (serverErr?.message || 'Unable to connect to learning server. Please ensure the backend is running and tap Retry.')
+              : prev.submissionError,
+          }));
+        }
+      }
+
+      // 2. Local fallback from IndexedDB / StorageRepository
+      const daily = await storageRepository.getDailySession(todayStr);
       if (daily) {
         if (daily.status === 'REVIEW_VIEWED') {
-          setSession({
-            status: 'COMPLETED',
-            dailyStatus: 'REVIEW_VIEWED',
-            sessionId: daily.sessionId,
-            currentIndex: daily.currentIndex,
-            questions: daily.questions,
-            currentAnswer: null,
-            currentEvaluation: null,
-            history: daily.history,
-            totalXpEarned: daily.totalXpEarned,
-            correctCount: daily.correctCount,
-            questionsCompleted: true,
-            reviewViewed: true,
-            startTime: null,
-            endTime: null,
-            fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
-            learnClueRevealed: daily.learnClueRevealed || {},
+          setSession((prev) => {
+            if (prev.status === 'IN_PROGRESS' || prev.status === 'ANSWER_SUBMITTED') return prev;
+            return {
+              status: 'COMPLETED',
+              dailyStatus: 'REVIEW_VIEWED',
+              sessionId: daily.sessionId,
+              currentIndex: daily.currentIndex,
+              questions: daily.questions,
+              currentAnswer: null,
+              currentEvaluation: null,
+              history: daily.history,
+              totalXpEarned: daily.totalXpEarned,
+              correctCount: daily.correctCount,
+              questionsCompleted: true,
+              reviewViewed: true,
+              branchState: daily.branchState || 'MAIN',
+              activeFollowUpQuestion: null,
+              isReattempt: daily.isReattempt || false,
+              isSubmitting: false,
+              pendingIdempotencyKey: null,
+              submissionError: null,
+              serverPendingTransition: null,
+              startTime: null,
+              endTime: null,
+              fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
+              learnClueRevealed: daily.learnClueRevealed || {},
+            };
           });
         } else if (daily.status === 'QUESTIONS_COMPLETED') {
-          setSession({
-            status: 'COMPLETED',
-            dailyStatus: 'QUESTIONS_COMPLETED',
-            sessionId: daily.sessionId,
-            currentIndex: daily.currentIndex,
-            questions: daily.questions,
-            currentAnswer: null,
-            currentEvaluation: null,
-            history: daily.history,
-            totalXpEarned: daily.totalXpEarned,
-            correctCount: daily.correctCount,
-            questionsCompleted: true,
-            reviewViewed: false,
-            startTime: null,
-            endTime: null,
-            fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
-            learnClueRevealed: daily.learnClueRevealed || {},
+          setSession((prev) => {
+            if (prev.status === 'IN_PROGRESS' || prev.status === 'ANSWER_SUBMITTED') return prev;
+            return {
+              status: 'COMPLETED',
+              dailyStatus: 'QUESTIONS_COMPLETED',
+              sessionId: daily.sessionId,
+              currentIndex: daily.currentIndex,
+              questions: daily.questions,
+              currentAnswer: null,
+              currentEvaluation: null,
+              history: daily.history,
+              totalXpEarned: daily.totalXpEarned,
+              correctCount: daily.correctCount,
+              questionsCompleted: true,
+              reviewViewed: false,
+              branchState: daily.branchState || 'MAIN',
+              activeFollowUpQuestion: null,
+              isReattempt: daily.isReattempt || false,
+              isSubmitting: false,
+              pendingIdempotencyKey: null,
+              submissionError: null,
+              serverPendingTransition: null,
+              startTime: null,
+              endTime: null,
+              fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
+              learnClueRevealed: daily.learnClueRevealed || {},
+            };
           });
         } else if (daily.status === 'IN_PROGRESS') {
-          setSession({
-            status: 'IN_PROGRESS',
-            dailyStatus: 'IN_PROGRESS',
-            sessionId: daily.sessionId,
-            currentIndex: daily.currentIndex,
-            questions: daily.questions,
-            currentAnswer: null,
-            currentEvaluation: null,
-            history: daily.history,
-            totalXpEarned: daily.totalXpEarned,
-            correctCount: daily.correctCount,
-            questionsCompleted: false,
-            reviewViewed: false,
-            startTime: Date.now(),
-            endTime: null,
-            fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
-            learnClueRevealed: daily.learnClueRevealed || {},
+          setSession((prev) => {
+            if (prev.status === 'IN_PROGRESS' || prev.status === 'ANSWER_SUBMITTED') return prev;
+            return {
+              status: 'IN_PROGRESS',
+              dailyStatus: 'IN_PROGRESS',
+              sessionId: daily.sessionId,
+              currentIndex: daily.currentIndex,
+              questions: daily.questions,
+              currentAnswer: null,
+              currentEvaluation: null,
+              history: daily.history,
+              totalXpEarned: daily.totalXpEarned,
+              correctCount: daily.correctCount,
+              questionsCompleted: false,
+              reviewViewed: false,
+              branchState: daily.branchState || 'MAIN',
+              activeFollowUpQuestion: null,
+              isReattempt: daily.isReattempt || false,
+              isSubmitting: false,
+              pendingIdempotencyKey: null,
+              submissionError: null,
+              serverPendingTransition: null,
+              startTime: Date.now(),
+              endTime: null,
+              fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
+              learnClueRevealed: daily.learnClueRevealed || {},
+            };
           });
         }
       } else {
-        setSession({
-          status: 'IDLE',
-          dailyStatus: 'NOT_STARTED',
-          sessionId: '',
-          currentIndex: 0,
-          questions: [],
-          currentAnswer: null,
-          currentEvaluation: null,
-          history: [],
-          totalXpEarned: 0,
-          correctCount: 0,
-          questionsCompleted: false,
-          reviewViewed: false,
-          startTime: null,
-          endTime: null,
-          fiftyFiftyEliminatedOptions: {},
-          learnClueRevealed: {},
+        setSession((prev) => {
+          if ((prev.status === 'IN_PROGRESS' || prev.status === 'ANSWER_SUBMITTED') && prev.questions.length > 0) return prev;
+          return {
+            status: 'IDLE',
+            dailyStatus: 'NOT_STARTED',
+            sessionId: '',
+            currentIndex: 0,
+            questions: [],
+            currentAnswer: null,
+            currentEvaluation: null,
+            history: [],
+            totalXpEarned: 0,
+            correctCount: 0,
+            questionsCompleted: false,
+            reviewViewed: false,
+            branchState: 'MAIN',
+            activeFollowUpQuestion: null,
+            isReattempt: false,
+            isSubmitting: false,
+            pendingIdempotencyKey: null,
+            submissionError: null,
+            serverPendingTransition: null,
+            startTime: null,
+            endTime: null,
+            fiftyFiftyEliminatedOptions: {},
+            learnClueRevealed: {},
+          };
         });
       }
     } finally {
       setIsLoading(false);
     }
-  }, [storageRepository, refreshUserStats]);
+  }, [storageRepository, refreshUserStats, questionService]);
 
   useEffect(() => {
-    initDailySession();
+    if (!isInitializedRef.current) {
+      isInitializedRef.current = true;
+      initDailySession();
+    }
   }, [initDailySession]);
 
   /**
    * Starts or resumes today's learning mission.
-   * Syncs with Cloud Firestore SessionService if authenticated.
+   * Syncs with server SessionService if authenticated.
    */
   const startDailySession = useCallback(
     async (count: number = SESSION_CONFIG.DEFAULT_SESSION_LENGTH) => {
       setIsLoading(true);
       try {
         const todayStr = getLocalTodayDateString();
-        const existingDaily = await storageRepository.getDailySession(todayStr);
-
-        if (existingDaily) {
-          if (existingDaily.status === 'REVIEW_VIEWED' || existingDaily.status === 'QUESTIONS_COMPLETED') {
-            return;
-          }
-          if (existingDaily.status === 'IN_PROGRESS') {
-            setSession((prev) => ({
-              ...prev,
-              status: 'IN_PROGRESS',
-              dailyStatus: 'IN_PROGRESS',
-            }));
-            return;
-          }
-        }
-
-        const pastSessions = await storageRepository.getAllSessions();
-        const sessionQuestions = await questionService.createDailySession(count, pastSessions);
-        const newSessionId = `daily_${todayStr}`;
-
-        // Asynchronously initialize Firestore dailySession doc
         const currentUid = defaultAuthService.getSession()?.userId;
+
+        let serverSession: any = null;
+        let sessionQuestions: Question[] = [];
+
         if (currentUid) {
-          sessionService.startDailySession(currentUid, todayStr).catch((err) => {
-            console.warn('Firestore startDailySession warning:', err);
-          });
+          try {
+            const apiRes = await sessionApi.getTodaySession(todayStr);
+            if (apiRes && apiRes.session) {
+              serverSession = apiRes.session;
+              if (Array.isArray(apiRes.questions) && apiRes.questions.length > 0) {
+                sessionQuestions = apiRes.questions;
+              }
+            }
+          } catch (apiErr) {
+            console.warn('[useLearningSession] startDailySession API warning:', apiErr);
+          }
         }
+
+        const newSessionId = serverSession?.sessionId || (currentUid
+          ? generateCanonicalSessionId(currentUid, todayStr)
+          : `daily_${todayStr}`);
+
+        if (sessionQuestions.length === 0) {
+          const pastSessions = await storageRepository.getAllSessions();
+          sessionQuestions = await questionService.createDailySession(count, pastSessions);
+        }
+
+        // Check if server session is already completed
+        if (serverSession && (serverSession.questionsCompleted || serverSession.status === 'QUESTIONS_COMPLETED' || serverSession.status === 'REVIEW_VIEWED')) {
+          setSession((prev) => ({
+            ...prev,
+            status: 'COMPLETED',
+            dailyStatus: serverSession.status,
+            sessionId: newSessionId,
+            currentIndex: serverSession.currentQuestionIndex ?? sessionQuestions.length,
+            questions: sessionQuestions,
+            totalXpEarned: serverSession.totalXpEarned ?? 0,
+            correctCount: serverSession.correctCount ?? 0,
+            questionsCompleted: true,
+            reviewViewed: Boolean(serverSession.reviewViewed || serverSession.status === 'REVIEW_VIEWED'),
+            branchState: serverSession.branchState || 'MAIN',
+            activeFollowUpQuestion: null,
+            isReattempt: false,
+            isSubmitting: false,
+            pendingIdempotencyKey: null,
+            submissionError: null,
+            serverPendingTransition: null,
+          }));
+          return;
+        }
+
+        const newBranch: BranchState = serverSession?.branchState || 'MAIN';
+        let resolvedFollowUp: Question | null = null;
+        if (newBranch === 'FOLLOW_UP') {
+          const fuId = serverSession?.activeFollowUpQuestionId;
+          resolvedFollowUp = fuId ? await questionService.getQuestionById(fuId) : null;
+          if (!resolvedFollowUp && serverSession?.questionIds?.[serverSession?.currentQuestionIndex]) {
+            resolvedFollowUp = await questionService.getFollowUpQuestion(serverSession.questionIds[serverSession.currentQuestionIndex]);
+          }
+        }
+
+        const initialIndex = serverSession?.currentQuestionIndex ?? 0;
+        const initialXp = serverSession?.totalXpEarned ?? 0;
+        const initialCorrect = serverSession?.correctCount ?? 0;
 
         const newDailyData: DailySessionData = {
           sessionId: newSessionId,
@@ -203,13 +429,14 @@ export function useLearningSession(
           status: 'IN_PROGRESS',
           questionsCompleted: false,
           reviewViewed: false,
-          currentIndex: 0,
+          currentIndex: initialIndex,
           questions: sessionQuestions,
           history: [],
-          score: 0,
+          score: initialCorrect,
           totalQuestions: sessionQuestions.length,
-          totalXpEarned: 0,
-          correctCount: 0,
+          totalXpEarned: initialXp,
+          correctCount: initialCorrect,
+          branchState: newBranch,
           fiftyFiftyEliminatedOptions: {},
           learnClueRevealed: {},
         };
@@ -220,15 +447,24 @@ export function useLearningSession(
           status: 'IN_PROGRESS',
           dailyStatus: 'IN_PROGRESS',
           sessionId: newSessionId,
-          currentIndex: 0,
+          currentIndex: initialIndex,
           questions: sessionQuestions,
           currentAnswer: null,
           currentEvaluation: null,
           history: [],
-          totalXpEarned: 0,
-          correctCount: 0,
+          totalXpEarned: initialXp,
+          correctCount: initialCorrect,
           questionsCompleted: false,
           reviewViewed: false,
+          branchState: newBranch,
+          activeMainQuestionId: serverSession?.activeMainQuestionId,
+          activeFollowUpQuestionId: serverSession?.activeFollowUpQuestionId,
+          activeFollowUpQuestion: resolvedFollowUp,
+          isReattempt: newBranch === 'REATTEMPT_MAIN',
+          isSubmitting: false,
+          pendingIdempotencyKey: null,
+          submissionError: null,
+          serverPendingTransition: null,
           startTime: Date.now(),
           endTime: null,
           fiftyFiftyEliminatedOptions: {},
@@ -238,7 +474,7 @@ export function useLearningSession(
         setIsLoading(false);
       }
     },
-    [questionService, storageRepository, sessionService]
+    [questionService, storageRepository]
   );
 
   /**
@@ -252,70 +488,207 @@ export function useLearningSession(
   }, []);
 
   /**
-   * Submits the current question answer for deterministic evaluation.
-   * Trainee answers are FINAL. No retry. Writes append-only attempt record to Firestore.
+   * Submits the current question answer for server-authoritative evaluation.
+   * Trainee answers are FINAL. Passes canonical idempotency key and branch state.
    */
-  const submitCurrentAnswer = useCallback(() => {
-    setSession((prev) => {
-      if (prev.status !== 'IN_PROGRESS' || !prev.currentAnswer) return prev;
+  const submitCurrentAnswer = useCallback(async () => {
+    // 1. Guard against concurrent duplicate submissions
+    if (isSubmittingRef.current) return;
+    if (session.status !== 'IN_PROGRESS' || !session.currentAnswer) return;
 
-      const currentQuestion = prev.questions[prev.currentIndex];
-      if (!AnswerEvaluator.isValidAnswer(currentQuestion, prev.currentAnswer)) return prev;
+    const activeQ = session.branchState === 'FOLLOW_UP'
+      ? session.activeFollowUpQuestion
+      : session.questions[session.currentIndex];
 
-      const evaluation = AnswerEvaluator.evaluate(currentQuestion, prev.currentAnswer);
-      const isCorrect = evaluation.is_correct;
-      const xpEarned = evaluation.awarded_xp;
+    if (!activeQ) return;
+    if (!AnswerEvaluator.isValidAnswer(activeQ, session.currentAnswer)) return;
+
+    isSubmittingRef.current = true;
+    setSession((prev) => ({ ...prev, isSubmitting: true, submissionError: null }));
+
+    const currentUid = defaultAuthService.getSession()?.userId || 'anonymous';
+    const todayStr = getLocalTodayDateString();
+    const currentSessionId = session.sessionId || generateCanonicalSessionId(currentUid, todayStr);
+    const currentBranch = session.branchState || 'MAIN';
+    const currentIndex = session.currentIndex;
+
+    // 2. Canonical Idempotency Key Management:
+    // Retain key on uncertain network failure; generate fresh key only for genuinely new submission.
+    const idemKey = pendingIdempotencyKeyRef.current || generateIdempotencyKey(
+      currentSessionId,
+      currentIndex,
+      currentBranch
+    );
+    pendingIdempotencyKeyRef.current = idemKey;
+
+    try {
+      const powerUpsActive: string[] = [];
+      if (currentBranch !== 'FOLLOW_UP') {
+        if (session.fiftyFiftyEliminatedOptions?.[currentIndex]) {
+          powerUpsActive.push('FIFTY_FIFTY');
+        }
+        if (session.learnClueRevealed?.[currentIndex]) {
+          powerUpsActive.push('LEARN');
+        }
+      }
+
+      const selectedOpt = (session.currentAnswer as any)?.selected_option ??
+                          (session.currentAnswer as any)?.selected_boolean ??
+                          (session.currentAnswer as any)?.tap_coordinate;
+
+      // 3. Backend-Authoritative Submission
+      const currentQId = activeQ.question_id || (activeQ as any).questionId;
+      const response = await sessionService.recordAttempt(currentUid, currentSessionId, {
+        questionId: currentQId,
+        questionIndex: currentIndex,
+        userAnswerPayload: session.currentAnswer,
+        powerUpsActive,
+        idempotencyKey: idemKey,
+        selectedOption: selectedOpt,
+        branchState: currentBranch,
+      });
+
+      // 4. Server authoritative result handling
+      pendingIdempotencyKeyRef.current = null;
+      const isCorrect = Boolean(response.result === 'CORRECT' || response.evaluation?.is_correct);
+      const xpAwarded = typeof response.xpAwarded === 'number' ? response.xpAwarded : 0;
+      const newTotalXp = typeof response.totalXpEarned === 'number'
+        ? response.totalXpEarned
+        : session.totalXpEarned + xpAwarded;
+      const newCorrectCount = typeof response.correctCount === 'number'
+        ? response.correctCount
+        : session.correctCount + (isCorrect ? 1 : 0);
+
+      const clientEval = AnswerEvaluator.evaluate(activeQ, session.currentAnswer);
+      const serverEval: AnswerEvaluationResult = {
+        ...clientEval,
+        is_correct: isCorrect,
+        status: isCorrect ? 'CORRECT' : 'INCORRECT',
+        awarded_xp: xpAwarded,
+        explanation: response.evaluation?.explanation || clientEval.explanation || activeQ.explanation || '',
+      };
 
       const newHistoryItem = {
-        questionId: currentQuestion.question_id,
-        question: currentQuestion,
-        userAnswer: prev.currentAnswer,
-        evaluation: evaluation,
+        questionId: currentQId,
+        question: activeQ,
+        userAnswer: session.currentAnswer,
+        evaluation: serverEval,
         timestamp: Date.now(),
       };
 
-      // Asynchronously log append-only attempt to Firestore
-      const currentUid = defaultAuthService.getSession()?.userId;
-      if (currentUid) {
-        const powerUpsActive: string[] = [];
-        if (prev.fiftyFiftyEliminatedOptions?.[prev.currentIndex]) {
-          powerUpsActive.push('FIFTY_FIFTY');
-        }
-        if (prev.learnClueRevealed?.[prev.currentIndex]) {
-          powerUpsActive.push('LEARN');
-        }
+      const nextBranch = response.branchState || 'MAIN';
+      const targetQuestionIndex = typeof response.currentQuestionIndex === 'number'
+        ? response.currentQuestionIndex
+        : (typeof response.questionIndex === 'number' ? response.questionIndex : currentIndex);
+      const isComplete = Boolean(response.isSessionComplete || response.questionsCompleted);
 
-        sessionService.recordAttempt(currentUid, prev.sessionId || `daily_${getLocalTodayDateString()}`, {
-          questionId: currentQuestion.question_id,
-          questionIndex: prev.currentIndex,
-          userAnswerPayload: prev.currentAnswer,
-          result: isCorrect ? 'CORRECT' : 'INCORRECT',
-          xpAwarded: xpEarned,
-          powerUpsActive,
-          isSessionComplete: prev.currentIndex >= prev.questions.length - 1,
-        }).catch((err) => {
-          console.warn('Firestore recordAttempt warning:', err);
-        });
+      // Lineage resolution: if transitioning to FOLLOW_UP, resolve canonical follow-up question
+      let resolvedFollowUp: Question | null = null;
+      if (nextBranch === 'FOLLOW_UP') {
+        const fuId = (response as any).activeFollowUpQuestionId;
+        if (fuId) {
+          resolvedFollowUp = await questionService.getQuestionById(fuId);
+        }
+        if (!resolvedFollowUp) {
+          resolvedFollowUp = await questionService.getFollowUpQuestion(currentQId);
+        }
+        if (!resolvedFollowUp) {
+          throw new Error(`CANONICAL_LINEAGE_NOT_FOUND: Could not resolve follow-up question for '${currentQId}'.`);
+        }
       }
 
-      return {
+      setSession((prev) => ({
         ...prev,
         status: 'ANSWER_SUBMITTED',
-        currentEvaluation: evaluation,
+        isSubmitting: false,
+        pendingIdempotencyKey: null,
+        submissionError: null,
+        currentEvaluation: serverEval,
         history: [...prev.history, newHistoryItem],
-        totalXpEarned: prev.totalXpEarned + xpEarned,
-        correctCount: isCorrect ? prev.correctCount + 1 : prev.correctCount,
-      };
-    });
-  }, [sessionService]);
+        totalXpEarned: newTotalXp,
+        correctCount: newCorrectCount,
+        activeFollowUpQuestion: nextBranch === 'FOLLOW_UP' ? resolvedFollowUp : prev.activeFollowUpQuestion,
+        serverPendingTransition: {
+          branchState: nextBranch,
+          currentQuestionIndex: targetQuestionIndex,
+          isSessionComplete: isComplete,
+          totalXpEarned: newTotalXp,
+          correctCount: newCorrectCount,
+        },
+      }));
+    } catch (err: any) {
+      console.error('[useLearningSession] submitCurrentAnswer error:', err);
+      const status = err?.status;
+      const message = err?.message || 'Submission failed.';
+
+      if (status === 409) {
+        if (message.includes('already completed')) {
+          pendingIdempotencyKeyRef.current = null;
+          setSession((prev) => ({
+            ...prev,
+            status: 'COMPLETED',
+            dailyStatus: 'QUESTIONS_COMPLETED',
+            questionsCompleted: true,
+            isSubmitting: false,
+            pendingIdempotencyKey: null,
+            submissionError: 'Daily session is already completed.',
+          }));
+          return;
+        } else if (message.includes('mismatch') || message.includes('MISMATCH')) {
+          try {
+            const res = await sessionApi.getTodaySession(todayStr);
+            if (res && res.session) {
+              const s = res.session;
+              pendingIdempotencyKeyRef.current = null;
+              setSession((prev) => ({
+                ...prev,
+                currentIndex: s.currentQuestionIndex ?? prev.currentIndex,
+                branchState: s.branchState ?? 'MAIN',
+                totalXpEarned: s.totalXpEarned ?? prev.totalXpEarned,
+                correctCount: s.correctCount ?? prev.correctCount,
+                questionsCompleted: Boolean(s.questionsCompleted),
+                isSubmitting: false,
+                pendingIdempotencyKey: null,
+                submissionError: `Reconciled with server: ${message}`,
+              }));
+              return;
+            }
+          } catch (syncErr) {
+            console.warn('[useLearningSession] Reconciliation sync failed:', syncErr);
+          }
+        } else if (message.includes('ATTEMPT_PAYLOAD_CONFLICT')) {
+          pendingIdempotencyKeyRef.current = null;
+          setSession((prev) => ({
+            ...prev,
+            isSubmitting: false,
+            pendingIdempotencyKey: null,
+            submissionError: 'Payload conflict detected. Please retry.',
+          }));
+          return;
+        }
+      }
+
+      // Network failure / uncertain error: retain idempotency key for safe retry
+      setSession((prev) => ({
+        ...prev,
+        isSubmitting: false,
+        pendingIdempotencyKey: pendingIdempotencyKeyRef.current,
+        submissionError: message || 'Network failure. Tap Check Answer to retry.',
+      }));
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  }, [session, questionService, sessionService]);
 
   /**
    * Activates 50/50 power-up for current MCQ question: eliminates exactly 2 incorrect options.
-   * Only usable on MCQ questions. Unlocks at 20-day streak.
+   * Only usable on primary MCQ questions.
    */
   const applyFiftyFifty = useCallback(() => {
     setSession((prev) => {
       if (prev.status !== 'IN_PROGRESS') return prev;
+      if (prev.branchState === 'FOLLOW_UP') return prev;
+
       const currentQ = prev.questions[prev.currentIndex];
       if (!currentQ || currentQ.type !== 'MCQ') return prev;
 
@@ -329,7 +702,6 @@ export function useLearningSession(
         [prev.currentIndex]: eliminated,
       };
 
-      // If user had currently selected an eliminated option, clear selection
       let nextAnswer = prev.currentAnswer;
       if (
         nextAnswer &&
@@ -345,7 +717,6 @@ export function useLearningSession(
         currentAnswer: nextAnswer,
       };
 
-      // Persist to daily session in background
       const todayStr = getLocalTodayDateString();
       storageRepository.saveDailySession({
         sessionId: prev.sessionId,
@@ -360,6 +731,7 @@ export function useLearningSession(
         totalQuestions: prev.questions.length,
         totalXpEarned: prev.totalXpEarned,
         correctCount: prev.correctCount,
+        branchState: prev.branchState,
         fiftyFiftyEliminatedOptions: updatedEliminations,
         learnClueRevealed: prev.learnClueRevealed,
       });
@@ -370,11 +742,13 @@ export function useLearningSession(
 
   /**
    * Activates LEARN power-up for current question: reveals clinical learning objective.
-   * Unlocks after 100 answered questions.
+   * Only usable on primary questions.
    */
   const applyLearn = useCallback(() => {
     setSession((prev) => {
       if (prev.status !== 'IN_PROGRESS') return prev;
+      if (prev.branchState === 'FOLLOW_UP') return prev;
+
       const currentQ = prev.questions[prev.currentIndex];
       if (!currentQ) return prev;
 
@@ -392,7 +766,6 @@ export function useLearningSession(
         learnClueRevealed: updatedRevealed,
       };
 
-      // Persist to daily session in background
       const todayStr = getLocalTodayDateString();
       storageRepository.saveDailySession({
         sessionId: prev.sessionId,
@@ -407,6 +780,7 @@ export function useLearningSession(
         totalQuestions: prev.questions.length,
         totalXpEarned: prev.totalXpEarned,
         correctCount: prev.correctCount,
+        branchState: prev.branchState,
         fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
         learnClueRevealed: updatedRevealed,
       });
@@ -417,116 +791,122 @@ export function useLearningSession(
 
   /**
    * Advances to the next question or completes the session.
-   * Session contains exactly 10 questions. Finalizes daily session in Firestore.
+   * Server-authoritative: follows serverPendingTransition without client bonus XP.
    */
   const nextQuestion = useCallback(async () => {
-    setSession((prev) => {
-      if (prev.status !== 'ANSWER_SUBMITTED') return prev;
+    const transition = session.serverPendingTransition;
+    const todayStr = getLocalTodayDateString();
 
-      const nextIndex = prev.currentIndex + 1;
-      const isFinished = nextIndex >= prev.questions.length;
-      const todayStr = getLocalTodayDateString();
+    if (transition?.isSessionComplete || session.currentIndex >= session.questions.length) {
+      const finalXp = session.totalXpEarned;
+      const currentUid = defaultAuthService.getSession()?.userId;
 
-      if (isFinished) {
-        const bonusXp = SESSION_CONFIG.XP_REWARDS.SESSION_COMPLETION_BONUS;
-        const finalXp = prev.totalXpEarned + bonusXp;
-
-        const storedRecord: StoredSessionRecord = {
-          sessionId: prev.sessionId,
-          timestamp: Date.now(),
-          totalQuestions: prev.questions.length,
-          correctCount: prev.correctCount,
-          xpEarned: finalXp,
-          date: todayStr,
-          answers: prev.history.map((h) => ({
-            questionId: h.questionId,
-            isCorrect: h.evaluation.is_correct,
-            userAnswer: h.userAnswer!,
-            category: h.question.category,
-          })),
-        };
-
-        const completedDaily: DailySessionData = {
-          sessionId: prev.sessionId,
-          date: todayStr,
-          status: 'QUESTIONS_COMPLETED',
-          questionsCompleted: true,
-          reviewViewed: false,
-          currentIndex: prev.questions.length,
-          questions: prev.questions,
-          history: prev.history,
-          score: prev.correctCount,
-          totalQuestions: prev.questions.length,
-          totalXpEarned: finalXp,
-          correctCount: prev.correctCount,
-          fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
-          learnClueRevealed: prev.learnClueRevealed,
-        };
-
-        // Asynchronously finalize Cloud Firestore dailySession & user progression
-        const currentUid = defaultAuthService.getSession()?.userId;
-        if (currentUid) {
-          sessionService.finalizeSession(
-            currentUid,
-            prev.sessionId,
-            finalXp,
-            prev.correctCount,
-            prev.questions.length
-          ).catch((err) => {
-            console.warn('Firestore finalizeSession warning:', err);
-          });
-        }
-
-        // Persist session locally
-        Promise.all([
-          storageRepository.saveSession(storedRecord),
-          storageRepository.saveDailySession(completedDaily),
-        ]).then(() => {
-          refreshUserStats();
+      if (currentUid) {
+        sessionService.finalizeSession(
+          currentUid,
+          session.sessionId,
+          finalXp,
+          session.correctCount,
+          session.questions.length
+        ).catch((err) => {
+          console.warn('Firestore finalizeSession warning:', err);
         });
-
-        return {
-          ...prev,
-          status: 'COMPLETED',
-          dailyStatus: 'QUESTIONS_COMPLETED',
-          questionsCompleted: true,
-          reviewViewed: false,
-          totalXpEarned: finalXp,
-          endTime: Date.now(),
-          currentAnswer: null,
-          currentEvaluation: null,
-        };
       }
 
-      const progressDaily: DailySessionData = {
-        sessionId: prev.sessionId,
+      const completedDaily: DailySessionData = {
+        sessionId: session.sessionId,
         date: todayStr,
-        status: 'IN_PROGRESS',
-        questionsCompleted: false,
+        status: 'QUESTIONS_COMPLETED',
+        questionsCompleted: true,
         reviewViewed: false,
-        currentIndex: nextIndex,
-        questions: prev.questions,
-        history: prev.history,
-        score: prev.correctCount,
-        totalQuestions: prev.questions.length,
-        totalXpEarned: prev.totalXpEarned,
-        correctCount: prev.correctCount,
-        fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
-        learnClueRevealed: prev.learnClueRevealed,
+        currentIndex: session.questions.length,
+        questions: session.questions,
+        history: session.history,
+        score: session.correctCount,
+        totalQuestions: session.questions.length,
+        totalXpEarned: finalXp,
+        correctCount: session.correctCount,
+        fiftyFiftyEliminatedOptions: session.fiftyFiftyEliminatedOptions,
+        learnClueRevealed: session.learnClueRevealed,
       };
 
-      storageRepository.saveDailySession(progressDaily);
+      const storedRecord: StoredSessionRecord = {
+        sessionId: session.sessionId,
+        timestamp: Date.now(),
+        totalQuestions: session.questions.length,
+        correctCount: session.correctCount,
+        xpEarned: finalXp,
+        date: todayStr,
+        answers: session.history.map((h) => ({
+          questionId: h.questionId,
+          isCorrect: h.evaluation.is_correct,
+          userAnswer: h.userAnswer!,
+          category: h.question.category,
+        })),
+      };
 
-      return {
+      Promise.all([
+        storageRepository.saveSession(storedRecord),
+        storageRepository.saveDailySession(completedDaily),
+      ]).then(() => {
+        refreshUserStats();
+      });
+
+      setSession((prev) => ({
         ...prev,
-        status: 'IN_PROGRESS',
-        dailyStatus: 'IN_PROGRESS',
-        currentIndex: nextIndex,
+        status: 'COMPLETED',
+        dailyStatus: 'QUESTIONS_COMPLETED',
+        questionsCompleted: true,
+        reviewViewed: false,
+        totalXpEarned: finalXp,
+        endTime: Date.now(),
         currentAnswer: null,
         currentEvaluation: null,
-      };
-    });
-  }, [storageRepository, refreshUserStats, sessionService]);
+        serverPendingTransition: null,
+      }));
+      return;
+    }
+
+    const nextBranch = transition?.branchState || 'MAIN';
+    const nextIdx = typeof transition?.currentQuestionIndex === 'number'
+      ? transition.currentQuestionIndex
+      : session.currentIndex + 1;
+
+    const progressDaily: DailySessionData = {
+      sessionId: session.sessionId,
+      date: todayStr,
+      status: 'IN_PROGRESS',
+      questionsCompleted: false,
+      reviewViewed: false,
+      currentIndex: nextIdx,
+      questions: session.questions,
+      history: session.history,
+      score: session.correctCount,
+      totalQuestions: session.questions.length,
+      totalXpEarned: session.totalXpEarned,
+      correctCount: session.correctCount,
+      branchState: nextBranch,
+      fiftyFiftyEliminatedOptions: session.fiftyFiftyEliminatedOptions,
+      learnClueRevealed: session.learnClueRevealed,
+    };
+
+    storageRepository.saveDailySession(progressDaily);
+
+    setSession((prev) => ({
+      ...prev,
+      status: 'IN_PROGRESS',
+      dailyStatus: 'IN_PROGRESS',
+      currentIndex: nextIdx,
+      branchState: nextBranch,
+      isReattempt: nextBranch === 'REATTEMPT_MAIN',
+      activeMainQuestionId: nextBranch === 'REATTEMPT_MAIN' ? (prev.activeMainQuestionId || prev.questions[nextIdx]?.question_id) : undefined,
+      currentAnswer: null,
+      currentEvaluation: null,
+      serverPendingTransition: null,
+      activeFollowUpQuestion: nextBranch === 'FOLLOW_UP' ? prev.activeFollowUpQuestion : null,
+      submissionError: null,
+    }));
+  }, [session, sessionService, storageRepository, refreshUserStats]);
 
   /**
    * Marks session review as viewed and locks today's session.
@@ -534,8 +914,13 @@ export function useLearningSession(
   const markReviewViewed = useCallback(async () => {
     const todayStr = getLocalTodayDateString();
     setSession((prev) => {
+      const currentUid = defaultAuthService.getSession()?.userId;
+      const fallbackSessionId = currentUid
+        ? generateCanonicalSessionId(currentUid, todayStr)
+        : `daily_${todayStr}`;
+
       const finishedDaily: DailySessionData = {
-        sessionId: prev.sessionId || `daily_${todayStr}`,
+        sessionId: prev.sessionId || fallbackSessionId,
         date: todayStr,
         status: 'REVIEW_VIEWED',
         questionsCompleted: true,
@@ -563,10 +948,65 @@ export function useLearningSession(
     await refreshUserStats();
   }, [storageRepository, refreshUserStats]);
 
-  const currentQuestion: Question | null =
-    session.questions.length > 0 && session.currentIndex < session.questions.length
-      ? session.questions[session.currentIndex]
-      : null;
+  const currentQuestion: Question | null = useMemo(() => {
+    if (session.branchState === 'FOLLOW_UP') {
+      return session.activeFollowUpQuestion || null;
+    }
+    if (session.branchState === 'REATTEMPT_MAIN' && session.activeMainQuestionId) {
+      const match = session.questions.find((q) => q.question_id === session.activeMainQuestionId);
+      if (match) return match;
+    }
+    if (session.questions.length > 0 && session.currentIndex < session.questions.length) {
+      return session.questions[session.currentIndex];
+    }
+    return null;
+  }, [
+    session.branchState,
+    session.activeFollowUpQuestion,
+    session.activeMainQuestionId,
+    session.questions,
+    session.currentIndex,
+  ]);
+
+  const resetSessionState = useCallback(() => {
+    setSession({
+      status: 'IDLE',
+      dailyStatus: 'NOT_STARTED',
+      sessionId: '',
+      currentIndex: 0,
+      questions: [],
+      currentAnswer: null,
+      currentEvaluation: null,
+      history: [],
+      totalXpEarned: 0,
+      correctCount: 0,
+      questionsCompleted: false,
+      reviewViewed: false,
+      branchState: 'MAIN',
+      activeMainQuestionId: undefined,
+      activeFollowUpQuestionId: null,
+      activeFollowUpQuestion: null,
+      isReattempt: false,
+      isSubmitting: false,
+      pendingIdempotencyKey: null,
+      submissionError: null,
+      serverPendingTransition: null,
+      startTime: null,
+      endTime: null,
+      fiftyFiftyEliminatedOptions: {},
+      learnClueRevealed: {},
+    });
+    setUserStats({
+      totalXp: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastActiveDate: null,
+      completedQuestionsCount: 0,
+      completedSessionsCount: 0,
+      totalCorrectAnswersCount: 0,
+      streakShieldConsumed: false,
+    });
+  }, []);
 
   return {
     session,
@@ -574,6 +1014,7 @@ export function useLearningSession(
     isLoading,
     currentQuestion,
     startDailySession,
+    initDailySession,
     setAnswer,
     submitCurrentAnswer,
     applyFiftyFifty,
@@ -581,5 +1022,6 @@ export function useLearningSession(
     nextQuestion,
     markReviewViewed,
     refreshUserStats,
+    resetSessionState,
   };
 }

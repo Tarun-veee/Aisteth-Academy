@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'assets/images/**/*', 'assets/audio/**/*'],
+      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'assets/images/**/*', 'assets/audio/**/*'],
       manifest: {
         name: 'AiSteth Academy',
         short_name: 'AiSteth',
@@ -33,6 +33,13 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
-    host: true
-  }
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 });

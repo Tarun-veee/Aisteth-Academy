@@ -124,7 +124,7 @@ export class AnswerEvaluator {
       status: isCorrect ? 'CORRECT' : 'INCORRECT',
       is_correct: isCorrect,
       user_payload: payload,
-      correct_solution_display: optionMap[q.correct_answer] || q.correct_answer,
+      correct_solution_display: (q.correct_answer && optionMap[q.correct_answer]) || q.correct_answer || '',
       explanation: q.explanation,
       learning_objective: q.learning_objective,
       category: q.category,

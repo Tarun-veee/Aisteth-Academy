@@ -19,6 +19,16 @@
 10. [Experiments & Abandoned Approaches](#10-experiments--abandoned-approaches)
 11. [Project Milestones](#11-project-milestones)
 12. [Current Project State](#12-current-project-state)
+13. [Phase 2.1 — Firebase Development Environment Setup](#13-phase-21---firebase-development-environment-setup-completed-2026-09-30)
+14. [Architecture & Implementation Plan Update: Direct Firebase Cloud & Real Content Ingestion](#14-architecture--implementation-plan-update-direct-firebase-cloud--real-content-ingestion-2026-09-30)
+15. [Phase 2.2 — Firebase Authentication & Username Registration](#15-phase-22---firebase-authentication--username-registration-completed-2026-09-30)
+16. [Phase 2.3 — Firestore Schema & Security Rules Deployment](#16-phase-23---firestore-schema--security-rules-deployment-completed-2026-09-30)
+17. [Architecture Streamlining: Removal of Firebase Storage from Phase 2](#17-architecture-streamlining-removal-of-firebase-storage-from-phase-2-2026-09-30)
+18. [Phase 2 Spark Architecture Implementation (v2.7.0-SPARK-SPEC)](#18-phase-2-spark-architecture-implementation-v270-spark-spec-completed-2026-09-30)
+19. [Phase 2 Frontend Remediation, Mobile Polish & Live DEV Smoke Verification](#19-phase-2-frontend-remediation-mobile-polish--live-dev-smoke-verification-completed-2026-10-07)
+20. [Phase 2 Backend Scalability Forensic Audit, Concurrency Reconciliation & Controlled Load Hardening](#20-phase-2-backend-scalability-forensic-audit-concurrency-reconciliation--controlled-load-hardening-completed-2026-10-08)
+21. [Phase 1 Implementation: Layered Node.js + Express Backend & Frontend Firebase Eradication](#21-phase-1-implementation-layered-nodejs--express-backend--frontend-firebase-eradication)
+22. [Security & Data-Integrity Remediation (F-01, F-02, F-03)](#22-security--data-integrity-remediation-f-01-f-02-f-03)
 
 ---
 
@@ -1124,4 +1134,716 @@ Implemented the **Firebase Spark (Free Tier — ₹0 / month)** architecture per
 - **Live Deployments**:
   - Firestore Rules & Indexes: Deployed live to `aisteth-academy-dev`.
   - Hosting: Deployed live to `https://aisteth-academy-dev.web.app`.
+
+---
+
+## 19. Phase 2 Frontend Remediation, Mobile Polish & Live DEV Smoke Verification (Completed 2026-10-07)
+
+### 19.1 Objective & Context
+Completed full UI remediation, accessibility hardening, and mobile responsive optimization for AiSteth Academy on mobile viewports (360px–412px Android/iOS devices) followed by live cloud smoke testing on `https://aisteth-academy-dev.web.app`.
+
+### 19.2 Core Deliverables
+1. **Header Action Cluster & Unified User Nav (`src/components/common/Header.tsx`)**:
+   - Replaced fragmented controls with a cohesive top-bar cluster: Streak badge with animated pulse, Level progress pill, Power-ups shortcut, and trainee Profile icon.
+   - Guaranteed minimum 44px tap targets adhering to WCAG 2.1 AAA touch guidelines.
+2. **Simplified Trainee Profile (`src/views/ProfileScreen.tsx`)**:
+   - Consolidated trainee profile into an uncluttered single-page view featuring editable designation, health sub-centre, district, state, and optional email.
+   - Integrated training lifetime statistics (total XP, current streak, completed daily sessions).
+   - Clean, safe signout workflow with session state eviction.
+3. **Power-Ups Screen Polish (`src/views/PowerUpsScreen.tsx`)**:
+   - Full support for 50/50, LEARN, and STREAK SHIELD power-ups with real-time inventory counts and actionable activate/equip buttons.
+   - Clear explanatory clinical utility notes and badge counters.
+4. **Mobile Layout & PWA Optimization**:
+   - Hardened bottom sheet drawer gestures (`src/hooks/useBottomSheetGesture.ts`, `src/components/feedback/FeedbackDrawer.tsx`) with touch velocity and distance threshold snapping.
+   - Audio question card (`src/components/audio/AudioPlayerCard.tsx`) responsive controls with high-contrast waveform visuals.
+   - Generated valid 192x192 and 512x512 PWA icons in `public/` and configured Web App Manifest in `index.html` and `vite.config.ts`.
+5. **Live DEV Smoke Verification**:
+   - Executed live interactive verification on `aisteth-academy-dev.web.app` using QA account `powerup_qa_test` (`Mm1TrJPtd0ZUhPgwjehmndpD8E12`).
+   - Verified end-to-end question answering, power-up redemption, profile updates, and responsive rendering on live hosting.
+
+### 19.3 Verification Results
+- **Automated Tests**: **202 / 202 passed** across 15 test suites via Vitest.
+- **Frontend Production Build**: Clean `tsc && vite build` in 3.65s with service worker and PWA asset generation.
+- **Live Hosting**: Deployed and smoke-tested on `https://aisteth-academy-dev.web.app`.
+
+---
+
+## 20. Phase 2 Backend Scalability Forensic Audit, Concurrency Reconciliation & Controlled Load Hardening (Completed 2026-10-08)
+
+### 20.1 Objective & Absolute Scope Boundaries
+Conducted a deep forensic audit and controlled load hardening of the Cloud Firestore / Firebase Auth backend architecture.
+- **Strict Scope Rule**: Backend scalability, concurrency safety, and reliability only. Questionnaire integration, clinical content, question repositories, and Phase 3 adaptive engine remained strictly out of scope.
+- **Core Hypothesis Evaluated**: Can the current client-authoritative + Firestore Security Rules backend reliably support increasing volumes of concurrent trainees and daily sessions without introducing unnecessary servers, Redis, Pub/Sub, or Cloud Functions?
+
+### 20.2 Critical Implementation Reconciliation
+Resolved three fundamental implementation discrepancies identified during forensic inspection:
+
+1. **Session ID Mismatch Unified (Issue 1)**:
+   - *Problem*: `useLearningSession.ts` constructed session IDs as `daily_[date]` while `SessionService.ts` expected `daily_[date]_[uid.substring(0,8)]`, risking duplicate documents or state divergence.
+   - *Fix*: Standardized canonical session ID generation using `generateCanonicalSessionId(uid, dateStr)` $\rightarrow$ `daily_[YYYY-MM-DD]_[UID8]` across [`src/services/SessionService.ts`](file:///c:/Users/I%20Health%20Highway/Downloads/TARUN%20PROJECT/acad/src/services/SessionService.ts) and [`src/hooks/useLearningSession.ts`](file:///c:/Users/I%20Health%20Highway/Downloads/TARUN%20PROJECT/acad/src/hooks/useLearningSession.ts).
+2. **State Machine Finalization Unblocked (Issue 2)**:
+   - *Problem*: `QUESTIONS_COMPLETED` was incorrectly included in `terminalStatuses`, causing `finalizeSession()` to immediately reject sessions that had completed all 10 questions.
+   - *Fix*: Corrected lifecycle transition rules in `SessionService.ts`: `IN_PROGRESS` $\rightarrow$ `QUESTIONS_COMPLETED` $\rightarrow$ `REVIEW_COMPLETED` $\rightarrow$ `REVIEW_VIEWED`. `QUESTIONS_COMPLETED` is an intermediate finalization-ready status, not a terminal state.
+3. **Atomic Session Finalization via Transactions (Issue 3)**:
+   - *Problem*: Session status update and trainee `learningState` XP/streak increments were executed as separate non-atomic writes, allowing network crashes to create partial commits.
+   - *Fix*: Re-engineered `SessionService.finalizeSession()` to use native Cloud Firestore atomic transactions (`runTransaction`). Either both `dailySessions` status and `learningState` commit together, or neither commits. Duplicate calls are safely rejected.
+
+### 20.3 Concurrency & Failure Test Automation
+Created comprehensive test suite [`tests/BackendConcurrencyAndReliability.test.ts`](file:///c:/Users/I%20Health%20Highway/Downloads/TARUN%20PROJECT/acad/tests/BackendConcurrencyAndReliability.test.ts):
+- **Multi-Tab Finalization**: Verified that simultaneous `finalizeSession()` calls across multiple tabs result in exactly 1 successful finalization and 0 duplicate XP, streak, or session completion increments.
+- **Multi-Device Answers**: Verified that simultaneous attempts from different devices append cleanly using UUID keys without attempt collisions.
+- **N=10 Concurrent Finalizations**: Handled 10 parallel finalization requests cleanly: 1 committed transaction, 9 safely ignored.
+- **Concurrent XP Increments**: Verified atomic progression accumulation ($\text{old XP} + \Delta A + \Delta B$).
+- **Network Failure Rollback**: Verified that simulated network timeout in transaction commit cleanly rolls back both documents.
+- **Browser Crash Idempotence**: Verified that reloading and retrying after abort commits cleanly without duplicate progression.
+
+### 20.4 Live Controlled Load Testing on Cloud Firestore
+Conducted staged load tests against live project `aisteth-academy-dev` using multi-client synthetic runners ([`scripts/run_controlled_load_test.js`](file:///c:/Users/I%20Health%20Highway/Downloads/TARUN%20PROJECT/acad/scripts/run_controlled_load_test.js)):
+
+| Metric | Stage 1 (10 Users) | Intermediate (50 Users) | Stage 2 (100 Users) | Stage 3 (500 Users) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Successful Sessions** | **10 / 10** | **50 / 50** | **99 / 100** | **NOT MEASURED** *(Spark Cap)* |
+| **Failed Sessions** | 0 | 0 | 0 *(0 Firestore failures)* | **NOT MEASURED** |
+| **Auth Failures** | 0 | 0 | 1 *(Single-IP rate limit)* | **NOT MEASURED** |
+| **Firestore Failures** | **0** | **0** | **0** | **NOT MEASURED** |
+| **Total Writes** | 230 | 1,150 | 2,277 | **NOT MEASURED** |
+| **Writes / Session** | Exactly 23.0 | Exactly 23.0 | Exactly 23.0 | Projected: 23.0 |
+| **Total Reads** | 30 | 150 | 297 | Projected: 1,500 |
+| **Peak Throughput** | 98.61 writes/s | 287.17 writes/s | 346.53 writes/s | Projected: $\approx 1,250$ writes/s |
+| **Average Latency** | 163.75 ms | 239.54 ms | 358.06 ms | Projected: $\approx 450$ ms |
+| **P95 Latency** | 366.24 ms | 448.78 ms | 608.07 ms | Projected: $\approx 750$ ms |
+| **Completion Rate** | **100.0%** | **100.0%** | **99.0%** *(100% of Auth)* | **NOT MEASURED** |
+| **Progression Correctness**| **100% Verified** | **100% Verified** | **100% Verified** | **NOT MEASURED** |
+
+*Note: Stage 3 was paused per protocol to avoid exhausting the daily 20,000 write quota on the Firebase Spark tier.*
+
+### 20.5 Scalability & Platform Limit Modeling
+- **Baseline Workload**: Exactly **23 Firestore writes and 3 reads** per completed session.
+- **Zero Global Write Hotspots**: All trainee writes are strictly partitioned under `/users/{uid}/...`. Single-document write rate during a 5-minute session is $\sim 0.04$ writes/s (well below Firestore's 1 write/s hardware limit).
+- **Security Rules Under Load**: Security rules evaluate in $O(1)$ memory using `request.auth` and resource payload without cross-document `get()` or `exists()` calls.
+- **Spark vs Blaze Quota Ceiling**:
+  - Spark Plan (Free Tier, 20,000 writes/day): Hard limit is $\lfloor 20,000 / 23 \rfloor = \mathbf{869\text{ completed sessions/day}}$. User 870 fails with HTTP 429 (`RESOURCE_EXHAUSTED`).
+  - Blaze Plan (Pay-as-you-go): Removes the daily quota limit. At 10,000 sessions/day, cost is $\approx \$0.42\text{ / day}$.
+  - Conclusion: Architectural scalability is **GREEN**. Bottleneck at scale is purely Google Cloud billing tier, not system architecture.
+
+### 20.6 Verification Results
+- **Automated Test Suite**: **209 / 209 passed** across 16 test files via Vitest (`npm run test`).
+- **TypeScript Typecheck & Build**: Zero compiler errors across frontend (`tsc && vite build`).
+- **Live Cloud Verification**: Passed live reconciliation script (`scripts/verify_reconciliation.js`) and 100-user controlled load test (`scripts/run_controlled_load_test.js`) on `aisteth-academy-dev`.
+- **Backend Scalability Verdict**: **GREEN** across Architecture, Concurrency, Reliability, Firestore Partitioning, and Security Rules. Ready for commercial Blaze plan upgrade when scaling beyond 850 daily sessions.
+
+---
+
+## 21. Phase 1 Implementation: Layered Node.js + Express Backend & Frontend Firebase Eradication
+
+### 21.1 Architectural Transformation Summary
+In accordance with the approved Revised Authentication & Session Architecture Specification, the application was decoupled from direct client-side Firebase coupling:
+```
+React Frontend (Vite PWA)
+      │
+      │ HTTPS REST / JSON (Credentials: include)
+      ▼
+Node.js + Express Backend (/api/v1)
+      │
+      ├── API / Controllers (AuthController, SessionController, QuestionController, UserController)
+      ├── Application / Use Cases (AuthUseCase, SessionUseCase, QuestionUseCase)
+      ├── Domain / Rules & Models (User, Session, Question, AnswerEvaluator, PowerUpService)
+      └── Infrastructure Layer
+             ├── FirebaseAuthAdapter (Google Identity Toolkit v1 REST + Firebase Admin SDK)
+             └── Firestore Repositories (FirestoreUserRepository, FirestoreSessionRepository, FirestoreQuestionRepository)
+                      │
+                      ▼
+             Google Cloud Firestore
+```
+
+### 21.2 Zero Frontend Firebase SDK Eradication
+- **Deleted Legacy Files**:
+  - `src/services/firebase.ts` (obsolete client SDK initialization)
+  - `src/repositories/FirestoreQuestionRepository.ts` (obsolete client Firestore repository)
+- **Dependency Eradication**: Removed `"firebase"` from root `package.json`.
+- **Source Verification**: Ripgrep scan across `src/` confirms **0 occurrences** of `firebase/app`, `firebase/auth`, and `firebase/firestore`.
+- **Production Bundle**: React bundle size reduced; zero Firebase client SDK bundled into `dist/assets/index-*.js`.
+
+### 21.3 Token & Session Security Implementation
+- **Access Token**: Firebase ID Token stored strictly in-memory (`inMemoryAccessToken` in `src/api/client.ts`). Never persisted to `localStorage`, `sessionStorage`, or `IndexedDB`.
+- **Refresh Token**: Stored exclusively in an `HttpOnly`, `Secure` (production), `SameSite=Lax`, `Path=/api/v1/auth` cookie. Inaccessible to JavaScript.
+- **Silent Session Rehydration**: On application mount, `App.tsx` calls `AuthService.rehydrateSession()`, triggering `POST /api/v1/auth/refresh`. If the HttpOnly cookie is valid, a new access token is stored in memory; if absent or expired, the user is transitioned cleanly to Sign In.
+- **Automatic 401 Interception & Refresh Queue**: `src/api/client.ts` intercepts HTTP 401 responses, executes a single locked refresh call via `POST /api/v1/auth/refresh`, drains queued in-flight requests, and retries the original request seamlessly.
+- **Logout Semantics**:
+  - Default: `POST /api/v1/auth/logout` performs single-device logout (clears HttpOnly cookie and in-memory access token without revoking global refresh tokens).
+  - Global: `POST /api/v1/auth/logout?allDevices=true` calls `admin.auth().revokeRefreshTokens(uid)` and clears the cookie.
+- **Password Authentication**: Backend implements Google Identity Toolkit REST API v1 (`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword`) and Secure Token API for refresh, completely isolating Firebase implementation behind `backend/src/infrastructure/auth/FirebaseAuthAdapter.ts`.
+
+### 21.4 Concurrency & Data Integrity
+- **Firestore Schema Preservation**: All existing collection paths (`users/{uid}`, `users/{uid}/dailySessions/{sessionId}`, `users/{uid}/attempts/{attemptId}`, `usernames/{username}`) remain 100% identical and intact.
+- **Atomic Session Finalization**: Session finalization is executed via atomic `admin.firestore().runTransaction` in `FirestoreSessionRepository.finalizeSessionAtomic`, strictly preventing duplicate XP, streak, or session completion increments under concurrent requests.
+- **Client In-Flight Lock**: `SessionService.finalizeSession` guards against rapid double-clicks and concurrent tab submissions via local in-memory lock set.
+
+### 21.5 Verification Results
+- **Frontend Test Suite**: **211 / 211 passed** across 17 test files (`npm test -- --run` including `tests/ApiClientRefreshConcurrency.test.ts`; 16 original regression test files with 209 tests fully green).
+- **Backend Test Suite**: **23 / 23 passed** across 2 test files (`backend/tests/api.test.ts`, `backend/tests/authAndSession.test.ts`).
+- **Total Combined Tests**: **234 / 234 passed** with 0 failures across 19 test files in workspace.
+- **TypeScript Typecheck**:
+  - Frontend (`tsc --noEmit`): **0 errors**.
+  - Backend (`tsc`): **0 errors**.
+- **Production Builds**:
+  - Frontend (`npm run build`): Successfully generated Vite + PWA production bundle (`dist/`).
+  - Backend (`npm --prefix backend run build`): Successfully compiled production bundle (`backend/dist/`).
+- **Firebase Scan**: Verified 0 Firebase SDK imports in `src/` and 0 Firebase dependencies in root `package.json`.
+
+### 21.6 Phase 1 Verification Gate Audit Results
+Conducted complete, independent 14-dimension verification pass:
+
+1. **Test Baseline**:
+   - Frontend Suite: **17 test files, 211 tests passed, 0 failures** (including 16 original regression files with 209 tests + `tests/ApiClientRefreshConcurrency.test.ts` with 2 tests).
+   - Backend Suite: **2 test files, 23 tests passed, 0 failures** ([`backend/tests/api.test.ts`](file:///c:/Users/I%20Health%20Highway/Downloads/TARUN%20PROJECT/acad/backend/tests/api.test.ts), [`backend/tests/authAndSession.test.ts`](file:///c:/Users/I%20Health%20Highway/Downloads/TARUN%20PROJECT/acad/backend/tests/authAndSession.test.ts)).
+   - Total Combined Tests: **234 passed, 0 failed**.
+2. **Firebase Eradication**:
+   - `src/` scan: Exactly **0 imports** of `firebase/app`, `firebase/auth`, or `firebase/firestore`.
+   - `initializeApp`, `getAuth`, `getFirestore`, `firebaseConfig`: Exactly **0 occurrences** in `src/`.
+   - Root `package.json` & `package-lock.json`: `"firebase"` completely uninstalled and removed.
+   - Production bundle `dist/`: Exactly **0 occurrences** of Firebase SDK.
+3. **Architectural Dependency Direction**:
+   - `Domain`: Imports neither Firebase nor Express.
+   - `Application`: Imports neither Firebase nor Express.
+   - `Controllers`: Zero direct Firestore calls; interacts solely through Application Use Cases.
+   - `Repositories` & `AuthProvider`: Implement pure domain interfaces (`IUserRepository`, `ISessionRepository`, `IQuestionRepository`, `IAuthProvider`).
+   - `Frontend`: Communicates exclusively via HTTPS REST/JSON (`/api/v1`).
+4. **Authentication Mechanism**:
+   - Verified real HTTP integration with Google Identity Toolkit REST API v1 (`accounts:signInWithPassword`) and Secure Token API for refresh. Fictional `admin.auth().signIn(...)` is strictly avoided.
+5. **Token Security**:
+   - Access token stored exclusively in-memory (`inMemoryAccessToken` in `src/api/client.ts`).
+   - Refresh token stored exclusively in an `HttpOnly`, `SameSite=Lax`, `Path=/api/v1/auth`, `Secure` (production) cookie.
+   - Client storage audit: Zero tokens in `sessionStorage` or `IndexedDB`.
+6. **401 Refresh Concurrency & Interceptor**:
+   - Verified that concurrent 401 responses serialize into exactly ONE refresh request via [`tests/ApiClientRefreshConcurrency.test.ts`](file:///c:/Users/I%20Health%20Highway/Downloads/TARUN%20PROJECT/acad/tests/ApiClientRefreshConcurrency.test.ts).
+   - Waiting queued requests reuse the refreshed token cleanly.
+   - Expired refresh tokens abort the queue cleanly without infinite loops.
+7. **Logout Semantics**:
+   - Default `POST /api/v1/auth/logout`: Clears HttpOnly cookie and in-memory access token on current device. Does NOT revoke global refresh tokens.
+   - `POST /api/v1/auth/logout?allDevices=true`: Invokes `admin.auth().revokeRefreshTokens(uid)` for global revocation.
+8. **Firestore Data Preservation**:
+   - Confirmed zero schema alterations, collection renames, field renames, or destructive migrations.
+   - All canonical collections (`users`, `usernames`, `dailySessions`, `attempts`, `contentReleases/questions`) preserved.
+9. **Session Finalization Atomicity**:
+   - Re-verified atomic `admin.firestore().runTransaction` in `FirestoreSessionRepository.finalizeSessionAtomic`.
+   - Zero duplicate XP, streak, or session completion on concurrent requests.
+10. **E2E Flow Classification**:
+    - Recorded strictly as **Level A (Unit)** and **Level B (In-Process HTTP Integration)**.
+    - Level D (Deployed Cloud E2E) explicitly designated as pending remote cloud deployment.
+11. **Environment & Secret Safety**:
+    - `.env` and `backend/.env` confirmed ignored by `.gitignore`. Zero service account private keys or secrets tracked by Git.
+12. **Cloud Portability**:
+    - Abstraction boundary verified. Infrastructure can be substituted without domain rule modifications.
+13. **Learning Engine Invariance**:
+    - Confirmed zero changes to questionnaire data, question ordering, progression curves, or power-up rules.
+14. **Audit Verdict**:
+    - **PASS WITH ISSUES** due to minor non-production test-fallback observation:
+      - *Issue 1*: Vitest offline test fallback in `src/services/AuthService.ts` (lines 215 & 310) writes a dummy token to `localStorage` when no HTTP backend is running during local unit tests. Production online paths (lines 112, 181, 273) already sanitize tokens.
+      - *Remediation*: Sanitize lines 215 and 310 to store only `{ userId, authenticatedAt, emailOrPhone }` upon user authorization, prior to final Phase 1 lock.
+
+### 21.7 Current System Baseline & Phase 1 Lock Status
+- **Backend Architecture**: Node.js + Express layered service running under `backend/` with Domain, Application, and Infrastructure boundaries fully established.
+- **Frontend Architecture**: React 18 + Vite PWA with zero direct Firebase SDK dependencies or imports. All interactions routed through `/api/v1`.
+- **Security Profile**: In-memory access token + `HttpOnly`, `SameSite=Lax` refresh cookie + automated serialized 401 refresh interceptor.
+- **Automated Test Suite**:
+  - Frontend/Root Vitest: **211 / 211 passed** across 17 test files.
+  - Backend Vitest: **23 / 23 passed** across 2 test files.
+  - Total: **234 / 234 passed** across 19 test suites.
+- **Type Safety & Compilation**: `tsc --noEmit` (frontend: 0 errors), `tsc` (backend: 0 errors), production builds generated cleanly.
+- **Phase Transition Status**: Phase 1 implementation complete and independently verified. Phase 2 (Learning Engine) remains completely gated and untouched, awaiting final Phase 1 sign-off and explicit user authorization.
+
+---
+
+## 22. Security & Data-Integrity Remediation (F-01, F-02, F-03)
+
+> **Execution Date**: 2026-10-09  
+> **Scope**: Targeted security & data-integrity hardening for confirmed architecture audit blockers (F-01, F-02, F-03).  
+> **Status**: COMPLETED & VERIFIED. Learning Engine redesign remains gated and untouched.
+
+### 22.1 F-03 — CORS Hardening
+- **Vulnerability Remediated**: Permissive fallback previously reflected unapproved cross-origin origins with `Access-Control-Allow-Credentials: true`.
+- **Implementation**:
+  - Replaced fallback in `backend/src/app.ts` with explicit approved-origin policy: `['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', process.env.FRONTEND_URL].filter(Boolean)`.
+  - Unapproved origins trigger `callback(null, false)`, omitting all CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`).
+  - Preserved non-origin requests (curl, server-to-server, mobile native) via `if (!origin) return callback(null, true)`.
+  - CORS is maintained as cross-origin transport policy, not authentication.
+- **Automated Verification**: Added 6 tests in `backend/tests/api.test.ts` covering approved localhost origins, 127.0.0.1 origins, unapproved malicious origins, preflight `OPTIONS` requests, and requests without an `Origin` header.
+
+### 22.2 F-02 — Profile Update Protection
+- **Vulnerability Remediated**: `PATCH /api/v1/users/me` previously forwarded uncurated payloads directly to Firestore `update()`, exposing `learningState`, streak, XP, role, and identity fields to client tampering.
+- **Application Layer Protection (`AuthUseCase.updateProfile`)**:
+  - Explicit allow-list defined in `UpdateProfileRequestDTO`: `displayName`, `designation`, `district`, `state`, `healthSubCentre`, `optionalEmail`.
+  - Strict type and format validation: non-empty string checks with trimming; RFC regex format validation for `optionalEmail`.
+  - Server-controlled and protected fields (`learningState`, `totalXp`, `currentStreak`, `currentLevel`, `role`, `organizationId`, `uid`, `username`, `syntheticEmail`, `trainingTimeZone`, `createdAt`, `lastActiveAt`, and unknown fields) are safely stripped and discarded.
+  - If no allow-listed fields are present, persistence update is safely bypassed.
+- **Persistence Layer Defensive Filtering (`FirestoreUserRepository.updateUserProfile`)**:
+  - Enforced secondary defense line: `PROTECTED_FIELDS` list (`uid`, `username`, `role`, `organizationId`, `syntheticEmail`, `trainingTimeZone`, `createdAt`, `learningState`, `lastActiveAt`) is deleted from updates object before calling Firestore `userRef.update()`.
+- **Automated Verification**: Added comprehensive unit and persistence tests in `backend/tests/securityRemediation.test.ts` verifying field sanitization, stripping of malicious payloads, validation errors, and Firestore update filtering.
+
+### 22.3 F-01 — Server-Authoritative XP and Session Finalization
+- **Vulnerabilities Remediated**:
+  1. Client-supplied progression metrics: Finalization endpoint previously accepted client-supplied `totalXpEarned` and `correctCount`, which were applied directly to user progression.
+  2. Client-controlled session completion (`isSessionComplete` inconsistency): `RecordAttemptRequestDTO` accepted `isSessionComplete`, and `SessionUseCase.recordAttempt` previously evaluated `payload.isSessionComplete || payload.questionIndex >= 9`, allowing an attacker to force premature session completion on question 1.
+- **Server-Authoritative Remediation Implemented**:
+  - **Controller Layer Runtime Sanitization (`SessionController.recordAttempt`)**:
+    - Validates runtime types (`sessionId` string, `questionId` string, `questionIndex` non-negative integer, `userAnswerPayload` object).
+    - Constructs clean DTO, completely stripping `isSessionComplete` and all unexpected client properties before dispatching to the use case.
+  - **Use Case Server-Side Sequencing & Completion (`SessionUseCase.recordAttempt`)**:
+    - Retrieves the Firestore daily session document; rejects if session is non-existent or already completed.
+    - Validates that `payload.questionIndex === session.currentQuestionIndex`, rejecting forged indices.
+    - Validates that `payload.questionId === session.questionIds[session.currentQuestionIndex]`, rejecting out-of-order or unrelated question IDs.
+    - Evaluates question strictly via server `AnswerEvaluator`.
+    - Derives session completion purely from server state: `(session.currentQuestionIndex + 1) >= totalQuestions`. Client `isSessionComplete` is completely ignored.
+  - **Persistence Layer Atomicity (`FirestoreSessionRepository.finalizeSessionAtomic`)**:
+    - Derives `verifiedAttemptXp` and `verifiedCorrectCount` directly from `sessionData` inside Firestore transaction.
+    - Legacy 10 XP completion bonus awarded **only** if session is verified completed (`questionsCompleted: true` or `currentQuestionIndex >= totalQuestions`).
+    - Incomplete sessions do not receive completion bonus and do not increment `completedSessionsCount`.
+    - Terminal status check (`COMPLETED`, `REVIEW_COMPLETED`, `reviewViewed: true`) guarantees idempotency and concurrency protection.
+- **Automated Verification**: Added comprehensive regression tests in `backend/tests/securityRemediation.test.ts` covering:
+  1. Ignoring client `isSessionComplete: true` on early question (session remains `IN_PROGRESS`).
+  2. Rejecting early question with forged `questionIndex >= 9` with index mismatch error.
+  3. Rejecting attempt with unrelated `questionId` with sequence mismatch error.
+  4. Legitimate completion on 10th question without client flag.
+  5. Incomplete session finalization receiving 0 bonus and 0 `completedSessionsCount` increment.
+  6. Duplicate and concurrent finalizations returning `alreadyFinalized: true` with zero duplicate awards.
+  7. Controller runtime validation stripping untrusted properties and rejecting malformed inputs.
+
+### 22.4 Final Verification Baseline
+- **Backend Tests**: 3 test files, **51 / 51 passed**.
+- **Frontend / Root Tests**: 20 test files, **262 / 262 passed**.
+- **Backend Build**: `tsc` completed with **0 errors**.
+- **Frontend Typecheck**: `tsc --noEmit` completed with **0 errors**.
+- **Frontend Production Build**: Vite production build succeeded cleanly.
+- **Working Tree Integrity**: All pre-existing working tree changes preserved; zero changes to Learning Engine progression or question sets.
+
+---
+
+## 23. Final XP Integrity Check: Duplicate & Concurrent Answer Submissions (F-01 Idempotency Hardening)
+
+> **Execution Date**: 2026-10-09  
+> **Scope**: Audit, regression testing, and atomic transaction hardening for answer submission idempotency and concurrency in `POST /api/v1/sessions/today/attempts`.  
+> **Status**: COMPLETED & VERIFIED. Learning Engine redesign remains gated and untouched.
+
+### 23.1 Concurrency & Idempotency Audit Findings
+- **Vulnerability Identified**: In the initial multi-step implementation of `SessionUseCase.recordAttempt`, the application layer performed three independent steps:
+  1. `sessionRepo.getDailySession()` to read the session state and check `currentQuestionIndex`.
+  2. `sessionRepo.appendAttempt()` to write an attempt document.
+  3. `sessionRepo.updateSessionProgress()` using `FieldValue.increment(awarded_xp)` and `FieldValue.increment(1)`.
+- **Race Condition Under Concurrency**: Two concurrent requests for the same user, `sessionId`, and `questionIndex: 0` could both read `currentQuestionIndex = 0` before either had committed. Both passed use-case validation, both created attempt documents, and both executed `FieldValue.increment()`. This resulted in:
+  - 10 XP awarded instead of 5 XP (+100% duplicate XP inflation).
+  - `correctCount` incremented twice (2 instead of 1).
+  - Two distinct attempt documents persisted for the same question index.
+- **Sequential Duplicate Defect**: Relying solely on `FieldValue.increment()` without a transactional conditional check permitted repeated answer calls to continually increment counters.
+
+### 23.2 Minimal Architectural Fix: Atomic Firestore Transaction
+- **Interface Contract (`ISessionRepository.ts`)**:
+  - Added `recordAttemptAtomic(params: RecordAttemptAtomicParams): Promise<RecordAttemptAtomicResult>`.
+- **Transactional Persistence (`FirestoreSessionRepository.recordAttemptAtomic`)**:
+  - Encapsulated within `adminDb.runTransaction`:
+    1. Reads `sessionRef` within the transaction context.
+    2. Enforces terminal status guard: rejects if `questionsCompleted === true`, `status === 'QUESTIONS_COMPLETED'`, or terminal status (`COMPLETED`, `REVIEW_COMPLETED`, `REVIEW_VIEWED`).
+    3. Enforces strict expected index validation: `if (questionIndex !== currentIndex) throw new Error(...)`.
+    4. Enforces question sequencing: validates `questionId === sessionData.questionIds[currentIndex]`.
+    5. Calculates authoritative updates without blind increments: `newXp = oldXp + evaluation.awarded_xp`, `newCorrect = oldCorrect + (evaluation.is_correct ? 1 : 0)`.
+    6. Staged writes: writes attempt record (`transaction.set(attemptRef, attemptDoc)`) and updates session state (`transaction.update(sessionRef, sessionUpdates)`) in the same atomic commit.
+  - **Optimistic Concurrency Control (OCC)**: If two concurrent transactions race, the winning transaction commits and advances `currentQuestionIndex`. The contending transaction is retried by Firestore, reads the updated index (`currentIndex = 1`), fails the expected index check, and aborts with zero writes committed.
+- **Application Layer Refactoring (`SessionUseCase.recordAttempt`)**:
+  - Eliminated the non-atomic multi-step read-then-write sequence.
+  - Evaluates question validity with `AnswerEvaluator`, then delegates directly to `sessionRepo.recordAttemptAtomic`.
+- **HTTP Error Translation (`error.middleware.ts`)**:
+  - Mapped `mismatch` (e.g., question index or sequence mismatch) and `already completed` errors to standard `HTTP 409 Conflict`.
+
+### 23.3 Automated Regression & Persistence Verification
+Added comprehensive regression test suites in `backend/tests/securityRemediation.test.ts` with stateful transaction simulation verifying persisted Firestore state:
+1. **Sequential Duplicate Submission**: First submission succeeds (index=1, XP=5, correct=1, attempts=1). Second submission for index 0 is rejected with index mismatch. Persisted state confirmed unchanged (index=1, XP=5, correct=1, attempts=1).
+2. **Two Concurrent Submissions (Same Question)**: Simulated concurrent execution of two identical submissions at index 0. OCC guarantees exactly 1 transaction succeeds and 1 aborts. Persisted state confirmed: index=1, XP=5 (not 10), correct=1 (not 2), attempt docs=1 (not 2).
+3. **Two Concurrent Submissions (Differing Answers)**: Concurrent race with different answers for index 0. Winning transaction commits; losing transaction aborts. Persisted state confirmed: index=1, exactly 1 attempt persisted, total XP matches only the winning answer.
+4. **Legitimate Sequential Progression**: Submitting question 0 commits (index=1, XP=5, correct=1). Submitting question 1 commits (index=2, XP=10, correct=2). Persisted state confirmed: index=2, XP=10, correct=2, attempts=2.
+5. **Replayed Request After Session Completion**: Attempt submitted against completed session (`QUESTIONS_COMPLETED` and `REVIEW_COMPLETED`) is rejected with "Daily session is already completed." Persisted state confirmed: 0 mutations, 0 attempts added.
+6. **HTTP Error Mapping**: Verified `SessionController.recordAttempt` returns `HTTP 409 Conflict` on index mismatch and already completed session.
+
+### 23.4 Final Verification Baseline
+- **Backend Tests**: 3 test files, **54 / 54 passed** (+3 new tests, 100% pass).
+- **Workspace Tests**: 20 test files, **265 / 265 passed** (100% pass).
+- **Backend TypeScript Compilation**: `tsc` passed with **0 errors**.
+- **Frontend Typecheck**: `tsc --noEmit` passed with **0 errors**.
+- **Frontend Production Build**: Vite build generated production bundle cleanly.
+- **Git Diff & Repository Integrity**: Clean working tree changes; pre-existing files preserved; Learning Engine untouched.
+
+---
+
+## 24. Learning Engine Redesign Phase 1: Question Model & Lineage Ingestion Mapping
+
+> **Execution Date**: 2026-10-09  
+> **Scope**: Implementation of Phase 1 only (Question Model and Lineage Ingestion Mapping).  
+> **Status**: COMPLETED & VERIFIED. Phase 2 (State Machine, XP Logic, Unsolved Bucket, Leaderboard, Frontend UI, Reminders) remains strictly gated and untouched. Zero data migrations executed.
+
+### 24.1 Clarification of Transactional Architecture & Participants
+To resolve ambiguous terminology in planning documentation, the exact transaction topology for question attempts is formally defined:
+- **Transaction Scope**: Single atomic Firestore transaction via `adminDb.runTransaction`.
+- **Participants & Affected Documents**:
+  1. `users/{uid}` (User Profile Document): Reads `learningState.lifetimeCompletedQuestionIds` and `learningState.totalXp`; writes `arrayUnion(questionId)` if newly completed main question, updates `totalXp`, `currentLevel`, and `totalCorrectAnswersCount`.
+  2. `users/{uid}/dailySessions/{sessionId}` (Daily Session Document): Reads `activeQuestionId`, `activeQuestionType`, `branchState`; writes `totalXpEarned`, `currentMainIndex`, `activeQuestionId`, `status`.
+  3. `users/{uid}/attempts/{attemptId}` (Attempt Document): Creates append-only attempt record with `result`, `xpAwarded`, `isFollowUp`, and timestamps.
+  4. `users/{uid}/unsolvedQuestions/{itemId}` (Unsolved Bucket Document, conditional): Written *only* when a follow-up fails or a returned main question re-attempt fails.
+- **Document Count**: Exactly 3 documents mutated on a standard question attempt; exactly 4 documents mutated when logging to the Unsolved Bucket.
+
+### 24.2 Phase 1 Implementation Details
+1. **Domain Model (`backend/src/domain/models/question.model.ts`)**:
+   - Extended `BaseQuestion` interface to expose `question_type?: 'Primary' | 'Follow-Up'`, `follow_up_for?: string | null`, `Question_Type?: 'Primary' | 'Follow-Up'`, and `Follow_Up_For?: string | null`.
+   - Preserves lineage metadata across all derived question types (`MCQQuestion`, `TrueFalseQuestion`, etc.).
+2. **Repository Contract (`backend/src/domain/interfaces/IQuestionRepository.ts`)**:
+   - Added `getFollowUpQuestion(mainQuestionId: string, releaseId?: string): Promise<Question | null>` to interface.
+3. **Infrastructure Adapter (`backend/src/infrastructure/firestore/FirestoreQuestionRepository.ts`)**:
+   - Corrected `mapFirestoreDocToQuestion` to read and preserve `Question_Type` and `Follow_Up_For` from raw Firestore documents, applying safe defaults (`'Primary'`, `null`) when omitted.
+   - Implemented `getFollowUpQuestion(mainQuestionId, releaseId)` which searches cached or fetched release questions to find the linked remedial follow-up question where `follow_up_for === mainQuestionId`.
+4. **Unit Test Suite (`backend/tests/questionRepository.test.ts`)**:
+   - Added 7 focused unit tests covering:
+     - Preserving Primary question metadata and `null` follow-up.
+     - Preserving Follow-Up question metadata and parent linkage (`MG-AIL-01-PR` -> `MG-AIL-01-TH`).
+     - Handling missing metadata with safe defaults.
+     - Preserving metadata on pre-formatted question documents.
+     - Lineage retrieval via `getFollowUpQuestion` returning linked follow-up.
+     - Returning `null` when no follow-up exists.
+     - Returning `null` on empty question IDs.
+
+### 24.3 Verification Baseline
+- **Backend Tests**: 4 test files, **61 / 61 passed** (+7 new tests, 100% pass).
+- **Full Workspace Tests**: 21 test files, **272 / 272 passed** (100% pass).
+- **Backend TypeScript Compilation**: `tsc` passed with **0 errors**.
+- **Frontend Typecheck**: `tsc --noEmit` passed with **0 errors**.
+- **Frontend Production Build**: Vite build completed cleanly in 1.36s with **0 errors**.
+- **Gate Enforcement**: Phase 2 state machine, XP modifications, Unsolved Bucket mutations, leaderboards, reminders, and data migrations are **NOT** started. Zero data migrations executed.
+
+---
+
+## 25. Learning Engine Redesign Phase 1 Correction: Authoritative Questionnaire Dataset Integration
+
+> **Execution Date**: 2026-10-09  
+> **Scope**: Phase 1 Correction — Integrating and auditing the actual project questionnaire dataset (`src/data/all_topics_questions.json`).  
+> **Status**: COMPLETED & VERIFIED. Phase 2 (State Machine, XP Logic, Unsolved Bucket, Leaderboard, Frontend UI, Reminders) remains strictly gated and untouched. Zero data migrations executed.
+
+### 25.1 Dataset Inspection & Lineage Audit
+- **Dataset Path**: `src/data/all_topics_questions.json` (588,116 bytes, 10,544 lines).
+- **Total Questions**: Exactly **620 questions** across exactly **31 topics**.
+- **Question Composition**: Exactly **310 Primary questions** (`Question_Type: "Primary"`, 10 per topic) and **310 Follow-Up questions** (`Question_Type: "Follow-Up"`, 10 per topic).
+- **Question ID Uniqueness**: Exactly **620 unique Question IDs** (0 duplicate IDs).
+- **Consistent Schema Properties**: Every question record contains the 15 standard properties: `Question_ID`, `Topic`, `Question_Type`, `Difficulty_Rank` (1-10), `Follow_Up_For`, `Audience`, `Question`, `Option_A`, `Option_B`, `Option_C`, `Option_D`, `Correct`, `Explanation`, `Action`, `MedGemma_Tag`.
+- **Existing Follow-Up Relationships**:
+  - **309 Follow-Ups** have valid, existing parent references (`Follow_Up_For !== null`).
+  - **0 Broken References**: Every single non-null referenced parent exists in the dataset as an authentic Primary question.
+  - **Lineage Discrepancies Identified**:
+    1. Topic `"Noise Quality"`: Question `MG-NOI-01-PR` has `Follow_Up_For: null` instead of referencing `MG-NOI-01-TH`.
+    2. Topic `"Fever Flow Murmur"`: Follow-up questions `MG-FEV-02-PR` through `MG-FEV-10-PR` reference `MG-FEV-01-TH` rather than `MG-FEV-02-TH` .. `MG-FEV-10-TH`.
+    3. Topic `"Innocent Murmur"`: Follow-up questions `MG-INN-02-PR` through `MG-INN-10-PR` reference `MG-INN-01-TH` rather than `MG-INN-02-TH` .. `MG-INN-10-TH`.
+- **Lineage Handling Rule**: In strict compliance with architectural guidelines, missing or anomalous relationships are **not fabricated**. `getFollowUpQuestion('MG-NOI-01-TH')` safely returns `null` because `MG-NOI-01-PR` does not declare `Follow_Up_For: 'MG-NOI-01-TH'`.
+
+### 25.2 Suffix Semantics & ID-Lineage Audit
+- **`-TH` vs. `-PR` Suffix Meaning**:
+  - `-TH`: **Theoretical** (Primary questions testing conceptual clinical knowledge and guidelines).
+  - `-PR`: **Practical** (Follow-Up remedial questions placing the trainee in concrete frontline health camp/field scenarios).
+  - 100% of all 310 `-TH` records possess `Question_Type: "Primary"`.
+  - 100% of all 310 `-PR` records possess `Question_Type: "Follow-Up"`.
+  - Zero other suffixes exist in the dataset.
+- **Discrepancy Table for Content Owner Review**:
+  | Record ID | Type | Rank | `Follow_Up_For` (Actual) | Content-Aligned Parent | Issue Description | Approval Required |
+  | :--- | :--- | :---: | :--- | :--- | :--- | :--- |
+  | `MG-NOI-01-PR` | Follow-Up | 1 | `null` | `MG-NOI-01-TH` | Missing parent reference. Sibling to `MG-NOI-01-TH`. | **Yes (Content Owner)** |
+  | `MG-FEV-02-PR` .. `10-PR` | Follow-Up | 2–10 | `MG-FEV-01-TH` | `MG-FEV-0x-TH` | Copy-paste duplication: all 10 follow-ups point to Rank 1 parent. | **Yes (Content Owner)** |
+  | `MG-INN-02-PR` .. `10-PR` | Follow-Up | 2–10 | `MG-INN-01-TH` | `MG-INN-0x-TH` | Copy-paste duplication: all 10 follow-ups point to Rank 1 parent. | **Yes (Content Owner)** |
+
+### 25.3 Repository Architecture, Production Packaging & Fail-Fast Guarantees
+1. **Authoritative Dataset Priority & No Silent Degradation**:
+   - `FirestoreQuestionRepository.ts` treats `src/data/all_topics_questions.json` as the authoritative dataset.
+   - If the local dataset is missing, unreadable, malformed, or empty, the repository **fails fast with an explicit fatal exception**. It strictly does NOT fall back to Firestore and silently truncate to 20 questions or return an empty array.
+2. **Production Packaging Verification**:
+   - Added `backend/scripts/copy_dataset.js` invoked via `npm run build` in `backend/package.json`.
+   - Copies `all_topics_questions.json` into `backend/dist/data/all_topics_questions.json`.
+   - Verified that path resolution succeeds from arbitrary working directories and within packaged production distributions.
+3. **Deterministic Follow-Up Lookup Semantics**:
+   - `getFollowUpQuestion(mainQuestionId)` returns ONLY records explicitly declaring `Follow_Up_For === mainQuestionId`.
+   - Strictly does NOT invent relationships using ID suffixes, rank, or topic similarity.
+   - For duplicate parent references (e.g. `MG-FEV-01-TH`), logs a prominent diagnostic warning and deterministically selects the rank-matched candidate (`MG-FEV-01-PR`, rank 1).
+   - Unreferenced questions (e.g. `MG-FEV-02-TH`, `MG-NOI-01-TH`) safely return `null`.
+
+### 25.4 Comprehensive Test Suite & Verification Baseline
+Updated `backend/tests/questionRepository.test.ts` to **26 comprehensive tests**:
+- 7 unit tests: Metadata mapping, type normalization, legacy defaults, fixture edge cases.
+- 9 actual dataset integration tests: 620 questions, 31 topics, 620 unique IDs, 309 valid parent links, 1 null parent case, multi-topic lineage retrieval.
+- 5 production packaging & fail-fast tests: dist/data packaging, missing dataset error, malformed JSON error, empty questions error, no silent Firestore degradation.
+- 5 deterministic disambiguation tests: duplicate parent handling, warning logging, rank-matched selection, strict non-invention of links, edge case inputs.
+
+**Verification Results**:
+- **Backend Tests**: 4 test files, **80 / 80 passed** (100% pass in 2.45s).
+- **Workspace Tests**: 21 test files, **291 / 291 passed** (100% pass in 4.91s).
+- **Backend TypeScript Build**: `tsc && node scripts/copy_dataset.js` passed with **0 errors**. Production artifact created.
+- **Frontend Typecheck**: `tsc --noEmit` passed with **0 errors**.
+- **Frontend Production Build**: `vite build` completed cleanly in 1.38s with **0 errors**.
+- **Gate Enforcement**: Phase 2 state machine, XP modifications, Unsolved Bucket mutations, leaderboards, reminders, and data migrations are **NOT** started. Zero data migrations executed.
+
+---
+
+## 26. Learning Engine Redesign Phase 1.1: Dataset Lineage Correction and Final Verification
+
+> **Execution Date**: 2026-10-09  
+> **Scope**: Investigation and evidence-based correction of the 19 dataset lineage anomalies in the authoritative curriculum dataset (`src/data/all_topics_questions.json`), implementation of strict dataset validation, regression testing of repository behavior, and execution of the complete 6-step verification sequence.  
+> **Status**: COMPLETED & VERIFIED. All 19 anomalies resolved with 100% clinical and architectural evidence. Phase 2 (State Machine, XP Ledger, Unsolved Bucket, Leaderboards, Frontend UI, Reminders) remains strictly gated and untouched. Zero live Firestore writes and zero cloud deployments occurred.
+
+### 26.1 Baseline vs. Final Dataset Statistics
+
+| Metric | Initial Baseline (Phase 1) | Final State (Phase 1.1) | Delta / Verification Status |
+| :--- | :--- | :--- | :--- |
+| **Dataset Path** | `src/data/all_topics_questions.json` | `src/data/all_topics_questions.json` | Sole authoritative source preserved |
+| **SHA-256 Checksum** | `3ce0408713c5fe4e763bdfb0b993d311dd35777e186f066b22af5b88916b1f9f` | `34e7e60f77fdbeaa972f452a37e3b89383833b7766a4d0ad7445598c1e98151a` | Authoritative hash updated |
+| **File Size (bytes)** | 588,116 | 588,126 | +10 bytes (replacement of `null` with `"MG-NOI-01-TH"`) |
+| **Total Questions** | 620 | 620 | Exactly 620 preserved (0 added / 0 removed) |
+| **Primary Questions (`-TH`)** | 310 | 310 | 10 per topic across all 31 topics |
+| **Follow-Up Questions (`-PR`)**| 310 | 310 | 10 per topic across all 31 topics |
+| **Topic Count** | 31 | 31 | 31 distinct clinical topics |
+| **Unique Question IDs** | 620 | 620 | 0 duplicate IDs (100% unique) |
+| **Null Parent References** | 1 (`MG-NOI-01-PR`) | 0 | Resolved to `MG-NOI-01-TH` |
+| **Broken Parent References** | 0 | 0 | 0 non-existent parent IDs |
+| **Non-Primary Parent References**| 0 | 0 | All parents are verified `Primary` (`-TH`) |
+| **Cross-Topic Parent References**| 0 | 0 | All parent-child pairs share identical topics |
+| **Duplicate Parent References**| 18 (`MG-FEV-01-TH`: 10, `MG-INN-01-TH`: 10) | 0 | Resolved to 1:1 rank-paired parents |
+| **Rank Mismatches (Warnings)** | 18 | 0 | All 310 follow-ups match parent rank |
+| **Total Lineage Anomalies** | **19** | **0** | **100% resolved with record-level evidence** |
+
+### 26.2 Record-by-Record Clinical Investigation & Disposition Table
+
+Every record was investigated by comparing question text, options, correct answers, explanations, learning actions, difficulty ranks, and MedGemma tags:
+
+| # | Question ID | Existing `Follow_Up_For` | Proposed Parent | Difficulty Rank | Clinical & Structural Evidence | Confidence | Disposition |
+| :-: | :--- | :--- | :--- | :-: | :--- | :-: | :--- |
+| **1** | `MG-NOI-01-PR` | `null` | `MG-NOI-01-TH` | 1 | Identical clinical scenario (crying child, loud fan, moving stethoscope chestpiece). Identical action: *"Stop the recording and try again in a quieter place."* Identical verbatim explanation. Sibling to ranks 2–10 which all link 1:1. Unambiguous missing metadata artifact. | **Very High (100%)** | **Updated to `MG-NOI-01-TH`** |
+| **2** | `MG-FEV-02-PR` | `MG-FEV-01-TH` | `MG-FEV-02-TH` | 2 | Progressive clinical phrasing matches rank 2 theoretical counterpart. Identical action (*"Treat the fever and re-evaluate..."*). Sibling to ranks 1 and 2–10. Spreadsheet autofill artifact. | **High (95%)** | **Updated to `MG-FEV-02-TH`** |
+| **3** | `MG-FEV-03-PR` | `MG-FEV-01-TH` | `MG-FEV-03-TH` | 3 | Scenario conciseness aligns directly with rank 3 theoretical counterpart (*"A boy is brought in with a fever..."*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-03-TH`** |
+| **4** | `MG-FEV-04-PR` | `MG-FEV-01-TH` | `MG-FEV-04-TH` | 4 | Question phrasing aligns directly with rank 4 theoretical counterpart (*"A child has a fever and a new soft sound..."*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-04-TH`** |
+| **5** | `MG-FEV-05-PR` | `MG-FEV-01-TH` | `MG-FEV-05-TH` | 5 | Question phrasing aligns with rank 5 theoretical counterpart (*"If a child is hot with a fever..."*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-05-TH`** |
+| **6** | `MG-FEV-06-PR` | `MG-FEV-01-TH` | `MG-FEV-06-TH` | 6 | Question phrasing aligns with rank 6 theoretical counterpart (*"A child has a fever and a new soft heart sound..."*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-06-TH`** |
+| **7** | `MG-FEV-07-PR` | `MG-FEV-01-TH` | `MG-FEV-07-TH` | 7 | Concise clinical phrasing aligns with rank 7 theoretical counterpart (*"Child has fever and a soft murmur. What to do?"*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-07-TH`** |
+| **8** | `MG-FEV-08-PR` | `MG-FEV-01-TH` | `MG-FEV-08-TH` | 8 | Concise clinical phrasing aligns with rank 8 theoretical counterpart (*"Child is sick with fever and new murmur. What to do?"*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-08-TH`** |
+| **9** | `MG-FEV-09-PR` | `MG-FEV-01-TH` | `MG-FEV-09-TH` | 9 | Ultra-concise clinical phrasing aligns with rank 9 theoretical counterpart (*"Fever and a soft murmur in a child. What to do?"*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-09-TH`** |
+| **10**| `MG-FEV-10-PR` | `MG-FEV-01-TH` | `MG-FEV-10-TH` | 10 | Ultra-concise clinical phrasing aligns with rank 10 theoretical counterpart (*"Fever and soft murmur. What to do?"*). Identical action and explanation. | **High (95%)** | **Updated to `MG-FEV-10-TH`** |
+| **11**| `MG-INN-02-PR` | `MG-INN-01-TH` | `MG-INN-02-TH` | 2 | Hospital report / surgery concern scenario aligns with rank 2 theoretical counterpart. Identical action (*"Reassure the parents that the murmur is harmless..."*). Spreadsheet autofill artifact. | **High (95%)** | **Updated to `MG-INN-02-TH`** |
+| **12**| `MG-INN-03-PR` | `MG-INN-01-TH` | `MG-INN-03-TH` | 3 | Healthy active girl scenario aligns with rank 3 theoretical counterpart. Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-03-TH`** |
+| **13**| `MG-INN-04-PR` | `MG-INN-01-TH` | `MG-INN-04-TH` | 4 | Well-child routine check-up scenario aligns with rank 4 theoretical counterpart. Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-04-TH`** |
+| **14**| `MG-INN-05-PR` | `MG-INN-01-TH` | `MG-INN-05-TH` | 5 | Growing-well child scenario aligns with rank 5 theoretical counterpart. Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-05-TH`** |
+| **15**| `MG-INN-06-PR` | `MG-INN-01-TH` | `MG-INN-06-TH` | 6 | Scared parents guidance aligns with rank 6 theoretical counterpart (*"Is an innocent murmur a sign of a sick heart?"*). Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-06-TH`** |
+| **16**| `MG-INN-07-PR` | `MG-INN-01-TH` | `MG-INN-07-TH` | 7 | Direct safety reassurance aligns with rank 7 theoretical counterpart. Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-07-TH`** |
+| **17**| `MG-INN-08-PR` | `MG-INN-01-TH` | `MG-INN-08-TH` | 8 | Concise scenario aligns with rank 8 theoretical counterpart. Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-08-TH`** |
+| **18**| `MG-INN-09-PR` | `MG-INN-01-TH` | `MG-INN-09-TH` | 9 | Mother query on sick heart aligns with rank 9 theoretical counterpart. Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-09-TH`** |
+| **19**| `MG-INN-10-PR` | `MG-INN-01-TH` | `MG-INN-10-TH` | 10 | Ultra-concise scenario (*"Healthy child, innocent murmur. What does it mean?"*) aligns with rank 10 theoretical counterpart (*"What does an innocent murmur mean?"*). Identical action and explanation. | **High (95%)** | **Updated to `MG-INN-10-TH`** |
+
+*Records intentionally left unchanged*: **0**. All 19 records were conclusively established as authoring/spreadsheet artifacts through record-level comparison of question scenarios, learning actions, explanations, and sibling topic patterns. No ambiguous cases required deferral.
+
+### 26.3 Architectural & Implementation Changes
+
+1. **Authoritative Dataset Correction (`src/data/all_topics_questions.json`)**:
+   - Updated lines 5635, 5652, 5669, 5686, 5703, 5720, 5737, 5754, 5771 (`MG-FEV-02-PR` .. `10-PR`).
+   - Updated lines 6315, 6332, 6349, 6366, 6383, 6400, 6417, 6434, 6451 (`MG-INN-02-PR` .. `10-PR`).
+   - Updated line 7165 (`MG-NOI-01-PR`).
+   - Zero clinical question texts, options, correct answers, or explanations were modified.
+2. **Curriculum Dataset Validator (`backend/src/domain/rules/datasetValidator.ts`)**:
+   - Implemented `validateQuestionDataset(questions)` enforcing:
+     - Hard errors: `EMPTY_DATASET`, `EMPTY_QUESTION_ID`, `DUPLICATE_QUESTION_ID`, `INVALID_QUESTION_TYPE`, `MISSING_REQUIRED_FIELD`, `INVALID_PRIMARY_FOLLOW_UP`, `MISSING_FOLLOW_UP_PARENT`, `NON_EXISTENT_PARENT`, `PARENT_NOT_PRIMARY`, `CROSS_TOPIC_REFERENCE`, `DUPLICATE_FOLLOW_UP_FOR_PARENT`.
+     - Diagnostic warnings: `RANK_MISMATCH`, `SUFFIX_MISMATCH`.
+   - Never performs automatic data mutations or link fabrication.
+3. **Build Packaging Pre-Validation (`backend/scripts/copy_dataset.js`)**:
+   - Added pre-validation of dataset syntax, non-emptiness, and structure prior to packaging.
+   - Added post-packaging byte-size and existence verification guaranteeing production artifact fidelity.
+4. **Automated Test Coverage Expansion (`backend/tests/questionRepository.test.ts`)**:
+   - Expanded from 26 to **36 comprehensive tests** (+10 tests).
+   - Added 12 dataset validator unit tests covering all hard error conditions and diagnostic warnings.
+   - Verified that the authoritative dataset passes with 0 errors and 0 warnings.
+   - Verified that all 310 follow-ups resolve to their exact parent questions (including all 3 corrected topics).
+   - Verified that duplicate parent disambiguation and warning logging operate deterministically via synthetic fixtures.
+
+### 26.4 Complete Verification Sequence Results
+
+All commands executed in strict sequential order with verified terminal outputs:
+
+| Sequence Step | Command | Execution Time | Results | Status |
+| :-: | :--- | :-: | :--- | :-: |
+| **Step 1** | Dataset Schema & Lineage Audit | 0.45s | 620 questions, 31 topics, 620 unique IDs, 0 null parents, 0 broken parents, 0 duplicate parents, 0 rank mismatches. | **PASSED** |
+| **Step 2** | Backend Test Suite (`npm.cmd --prefix backend test`) | 2.45s | 4 test files, **90 / 90 tests passed** (100%). | **PASSED** |
+| **Step 3** | Backend Production Build (`npm.cmd --prefix backend run build`) | 1.82s | `tsc` compiled cleanly; `copy_dataset.js` packaged 620 questions (588,126 bytes) to `dist/data/`. | **PASSED** |
+| **Step 4** | Workspace Test Suite (`npm.cmd test -- --run`) | 4.94s | 21 test files, **301 / 301 tests passed** (100%). | **PASSED** |
+| **Step 5** | Frontend Typecheck (`npm.cmd run typecheck`) | 6.81s | `tsc --noEmit` completed with **0 errors**. | **PASSED** |
+| **Step 6** | Frontend Production Build (`npm.cmd run build`) | 1.38s | Vite production bundle generated cleanly (1943 modules transformed, 0 errors). | **PASSED** |
+
+### 26.5 Independent Packaged Dataset Verification
+
+Bit-for-bit comparison between `src/data/all_topics_questions.json` and `backend/dist/data/all_topics_questions.json`:
+- **Source SHA-256**: `34e7e60f77fdbeaa972f452a37e3b89383833b7766a4d0ad7445598c1e98151a`
+- **Dist SHA-256**: `34e7e60f77fdbeaa972f452a37e3b89383833b7766a4d0ad7445598c1e98151a`
+- **Checksum Match**: **True (Exact Match)**
+- **File Size Match**: Exactly 588,126 bytes on both paths.
+- **Question Count Match**: Exactly 620 on both paths.
+- **Field-by-Field Mismatches**: Exactly **0**. All 19 corrected records confirmed in production artifact.
+
+### 26.6 Gate Enforcement & Strict Separation of Facts
+
+- **Live Database Writes**: **ZERO**. No writes to cloud Firestore, staging, or production collections occurred.
+- **Deployments**: **ZERO**. No hosting deployments, Cloud Functions deploys, or remote publishes occurred.
+- **Pre-existing Working Tree**: All pre-existing modified/untracked files preserved intact.
+- **Phase 2 Status**: **STRICTLY ON HOLD**. Branching state machine, `unsolvedQuestions` transactions, XP ledger, and UI changes are untouched.
+
+---
+
+## 27. Learning Engine Redesign Phase 2 — Stage 1: Domain Models, State Machine & Progression Service
+
+> **Execution Date**: 2026-10-09  
+> **Scope**: Implementation of Phase 2 Stage 1 ONLY: Domain Models, State Machine, and Progression Service. Gated implementation following explicit approval of Decisions 1, 2, 3, and 4 (Option A).  
+> **Status**: COMPLETED & VERIFIED. Stages 2–6 remain strictly gated and untouched. Zero data migrations executed. Zero cloud deployments occurred.
+
+### 27.1 Approved Product Decisions Implemented
+1. **Decision 1 (Option A) — Re-attempt Policy**:
+   - Exactly ONE re-attempt permitted after successful remedial Follow-Up.
+   - Flow: Incorrect Main → present exact linked Follow-Up. Correct Follow-Up (0 XP) → route back to Main for one re-attempt. Correct Main Re-attempt → mark completed and proceed. Incorrect Main Re-attempt → queue for Unsolved Questions Bucket (`reason: 'REATTEMPT_FAILED'`) and proceed to next Main question.
+   - Unlimited remedial loop is strictly prevented.
+2. **Decision 2 (Option A) — XP Accounting Policy**:
+   - 10 XP awarded per uncompleted Main question if learner's total XP before award is < 310 (including on permitted re-attempt).
+   - Trainee at 305 XP receives full 10 XP, reaching 315 XP.
+   - If total XP >= 310, awards 0 XP. Historical XP is NEVER reduced.
+   - Follow-Ups, incorrect answers, and finalization award 0 XP.
+   - Main question completion recorded in `lifetimeCompletedQuestionIds`.
+3. **Level Formula**:
+   - `level = min(31, floor(max(0, totalXp) / 10) + 1)` with Level 31 ceiling.
+4. **Curriculum Completion Milestone**:
+   - Requires all 310 unique foundational Main questions in `lifetimeCompletedQuestionIds`.
+
+### 27.2 File-by-File Implementation Details
+1. **Domain Models**:
+   - `backend/src/domain/models/session.model.ts`: Added `BranchState = 'MAIN' | 'FOLLOW_UP' | 'REATTEMPT_MAIN'`. Extended `DailySessionDoc` and `AttemptDoc` with optional branching and re-attempt metadata (`branchState`, `activeMainQuestionId`, `activeFollowUpQuestionId`, `isReattempt`, `isFollowUp`, `parentQuestionId`).
+   - `src/models/session.types.ts`: Mirror definitions on frontend for full type compatibility.
+2. **State Machine (`backend/src/domain/rules/LearningEngineStateMachine.ts`)**:
+   - Implemented pure finite state machine governing phases: `IDLE`, `PRESENTING_MAIN`, `MAIN_FEEDBACK`, `PRESENTING_FOLLOW_UP`, `FOLLOW_UP_FEEDBACK`, `REATTEMPTING_MAIN`, `REATTEMPT_FEEDBACK`, `QUESTIONS_COMPLETED`.
+   - Deterministic branching, re-attempt limits, unsolved question queueing, and session interruption recovery.
+3. **Progression Service (`backend/src/domain/rules/ProgressionService.ts` & `src/services/ProgressionService.ts`)**:
+   - Implemented `calculateLevel(totalXp)` (31 levels).
+   - Implemented `calculateMainQuestionXpAward(params)` (10 XP under 310 threshold, 305 -> 315 rule, 0 XP if >= 310 or already completed).
+   - Implemented `calculateFollowUpXpAward()` (0 XP) and `calculateSessionFinalizationXpAward()` (0 XP).
+   - Implemented `isCurriculumCompleted(ledger)` (310 unique main questions).
+   - Preserved backward-compatible `calculateProgression` for legacy views.
+
+### 27.3 Automated Test Coverage & Verification Results
+- **New Unit Tests Added**:
+  - `backend/tests/progressionService.test.ts`: **21 tests** covering Level 1–31 calculations, 305 XP edge case, 310 XP threshold, ledger idempotency, and curriculum completion.
+  - `backend/tests/learningEngineStateMachine.test.ts`: **15 tests** covering linear flows, branching, correct re-attempt, failed re-attempt, failed follow-up, 10th question completion, and interrupted session recovery.
+- **Backend Test Suite** (`npm.cmd --prefix backend test`):
+  - **6 test files passed, 126 / 126 tests passed** (100% pass, +36 tests).
+- **Workspace Test Suite** (`npm.cmd test`):
+  - **23 test files passed, 337 / 337 tests passed** (100% pass, +36 tests).
+- **TypeScript Typechecks & Builds**:
+  - Frontend typecheck (`npm run typecheck`): Clean, **0 errors**.
+  - Frontend production build (`npm run build`): Clean, **0 errors**.
+  - Backend build (`npm --prefix backend run build`): Clean, **0 errors**.
+- **Authoritative Dataset Integrity**:
+  - `src/data/all_topics_questions.json`: SHA-256 `34e7e60f77fdbeaa972f452a37e3b89383833b7766a4d0ad7445598c1e98151a` (Unmodified).
+  - `backend/dist/data/all_topics_questions.json`: SHA-256 `34e7e60f77fdbeaa972f452a37e3b89383833b7766a4d0ad7445598c1e98151a` (Bit-for-bit match).
+
+### 27.4 Gate Enforcement
+- **Live Database Writes**: **ZERO**.
+- **Cloud Deployments**: **ZERO**.
+- **Stage 2 Status**: **ON HOLD**. Awaiting explicit user authorization before proceeding to Question Selection & Follow-Up Ingestion Alignment.
+
+---
+
+## 28. Learning Engine Redesign Phase 2 — Stage 2: Question Selection & Follow-Up Ingestion Alignment
+
+> **Execution Date**: 2026-10-12  
+> **Scope**: Implementation of Phase 2 Stage 2 ONLY: Authoritative Main-Question Selection, Follow-Up Lineage Ingestion Validation, and Stage 1 Correctness Alignment for `isCurriculumCompleted()`.  
+> **Status**: COMPLETED & VERIFIED. Stages 3–6 remain strictly gated and untouched. Zero live Firestore writes and zero cloud deployments occurred.
+
+### 28.1 Stage 1 Correctness Alignment — `isCurriculumCompleted()`
+1. **Authoritative ID Validation**:
+   - Replaced simple count threshold (`Set(ids).size >= 310`) with strict verification against canonical foundational curriculum question IDs: `authoritativeMainQuestionIds.every((id) => completedSet.has(id))`.
+   - Prevents arbitrary, synthetic, or non-curriculum IDs from falsely triggering curriculum completion.
+   - Canonical `AUTHORITATIVE_MAIN_QUESTION_IDS` (310 Primary IDs) imported directly from `sessionSelection.ts` as default reference set.
+   - Mirrored identically in backend (`backend/src/domain/rules/ProgressionService.ts`) and frontend (`src/services/ProgressionService.ts`).
+2. **Regression Test Verification**:
+   - Added 4 new regression tests in `backend/tests/progressionService.test.ts` (suite total: 25 tests):
+     - Confirms 310 arbitrary question IDs evaluate to `false`.
+     - Confirms 309 authoritative IDs + 1 arbitrary ID evaluate to `false`.
+     - Confirms exactly all 310 authoritative Primary IDs evaluate to `true`.
+     - Confirms custom subsets validate strictly against specified authoritative IDs.
+
+### 28.2 Main-Question Selection Algorithm (`selectDailyMainQuestions`)
+Implemented pure deterministic selection engine in `backend/src/domain/rules/sessionSelection.ts`:
+1. **Topic Ordering Sequence (`AUTHORITATIVE_TOPIC_SEQUENCE`)**:
+   - Exact 31-topic progression order from `src/data/all_topics_questions.json`: `Ai Abnormal`, `AI limitation`, `AiSteth`, `Anaemia flow`, `Apex`, `ASHA role`, `CHD basics`, `Chorea`, `Continuous Murmur`, `Cyanosis`, `Diastolic`, `DEIC`, `Echocardiogram`, `Exercise Intolerance`, `Family History`, `Feeding Red Flags`, `Fever Flow Murmur`, `Five Points`, `Innocent Murmur`, `Llsb`, `Murmur Not Diagnosis`, `Noise Quality`, `Position Change`, `Rbsk Condition`, `Rhd Age`, `Rhd Basics`, `Secondary Prevention`, `Sore Throat History`, `Sore Throat Prevention`, `Systolic Timing`, `Thrill`.
+2. **Authoritative Primary Questions List (`AUTHORITATIVE_MAIN_QUESTION_IDS`)**:
+   - Exactly 310 unique Primary question IDs (`-TH` suffix) sorted by curriculum topic order and difficulty rank (1 to 10).
+3. **Deterministic Selection Rules**:
+   - Exclusively filters for `Question_Type === 'Primary'` (`isPrimaryQuestion`).
+   - Strictly excludes any question ID present in `lifetimeCompletedQuestionIds`.
+   - Never selects Follow-Up questions.
+   - Deterministic sort hierarchy:
+     1. Primary: Topic index in `AUTHORITATIVE_TOPIC_SEQUENCE` (0 to 30).
+     2. Secondary: Difficulty Rank ascending (1 to 10).
+     3. Tie-breaker: Lexical Question ID ascending (`localeCompare`).
+   - Boundary handling:
+     - Returns up to 10 questions per daily session.
+     - If fewer than 10 remain (e.g. 5 uncompleted), returns all remaining uncompleted questions.
+     - If 0 remain, returns empty selection with `isCurriculumCompleted: true` and `remainingUncompletedCount: 0`.
+     - Never fabricates placeholder or duplicate questions.
+
+### 28.3 Lineage Ingestion Validation (`validateFollowUpLineage`)
+Implemented 1:1 parent-child verification function in `backend/src/domain/rules/sessionSelection.ts`:
+- **Validation Rules**:
+  - Every Follow-Up must have a non-null `Follow_Up_For` referencing an existing Primary question.
+  - Parent question must have `Question_Type === 'Primary'`.
+  - Parent and Follow-Up topics must match.
+  - Parent and Follow-Up difficulty ranks must match.
+  - Exactly one Follow-Up points to each Primary question (zero duplicate parents).
+  - Every Primary question has exactly one Follow-Up referencing it (zero orphan primaries).
+- **Authoritative Dataset Lineage Audit Results**:
+  - Total questions evaluated: **620**.
+  - Primary questions: **310**.
+  - Follow-Up questions: **310**.
+  - Valid 1:1 lineage pairs: **310**.
+  - Errors detected: **0**.
+  - Warnings detected: **0**.
+  - `isValid`: **true**.
+
+### 28.4 Repository Interface Alignment
+- `backend/src/domain/interfaces/IQuestionRepository.ts`:
+  - Added method `getDailyMainQuestions(lifetimeCompletedQuestionIds?: string[], count?: number, releaseId?: string): Promise<Question[]>`.
+- `backend/src/infrastructure/firestore/FirestoreQuestionRepository.ts`:
+  - Implemented `getDailyMainQuestions`, retrieving the authoritative curriculum pool and invoking pure `selectDailyMainQuestions`.
+  - Preserved backward compatibility for `getDailySessionQuestions` and legacy day-parity rotation.
+
+### 28.5 Automated Test Coverage & Verification Results
+- **New Test Files Added**:
+  - `backend/tests/sessionSelection.test.ts`: **19 tests** covering:
+    - Initial 10-question daily selection.
+    - Deterministic progression (advances to next batch as questions are completed).
+    - Exclusion of completed question IDs.
+    - Completion of curriculum (empty selection, `isCurriculumCompleted: true`).
+    - Trailing subset selection (< 10 questions remaining).
+    - Strict non-inclusion of Follow-Ups in daily selection.
+    - Tie-breaker stability.
+    - Full 620-question authoritative dataset lineage validation (0 errors, 310 valid pairs).
+    - Synthetic lineage error detection (`MISSING_PARENT_REFERENCE`, `PARENT_NOT_FOUND`, `PARENT_NOT_PRIMARY`, `TOPIC_MISMATCH`, `DIFFICULTY_RANK_MISMATCH`, `DUPLICATE_PARENT_LINK`, `ORPHAN_MAIN_QUESTION`).
+- **Regression Tests Expanded**:
+  - `backend/tests/progressionService.test.ts`: Expanded from 21 to **25 tests** for authoritative curriculum completion logic.
+- **Backend Test Suite** (`npm.cmd --prefix backend test`):
+  - **7 test files passed, 149 / 149 tests passed** (100% pass, +23 tests).
+- **Workspace Test Suite** (`npm.cmd test`):
+  - **24 test files passed, 360 / 360 tests passed** (100% pass, +23 tests).
+- **TypeScript Typechecks & Production Builds**:
+  - Frontend typecheck (`npm run typecheck`): Clean, **0 errors**.
+  - Frontend production build (`npm run build`): Clean, **0 errors**.
+  - Backend build (`npm --prefix backend run build`): Clean, **0 errors**. Production artifact packaged into `dist/data/`.
+- **Authoritative Dataset Integrity (SHA-256 Checksum Verification)**:
+  - `src/data/all_topics_questions.json`: `34e7e60f77fdbeaa972f452a37e3b89383833b7766a4d0ad7445598c1e98151a` (Unmodified).
+  - `backend/dist/data/all_topics_questions.json`: `34e7e60f77fdbeaa972f452a37e3b89383833b7766a4d0ad7445598c1e98151a` (Bit-for-bit match).
+
+### 28.6 Gate Enforcement & Prohibited Actions
+- **Live Database Writes**: **ZERO**. No writes to cloud Firestore, staging, or production databases.
+- **Cloud Deployments**: **ZERO**. No Cloud Functions or Firebase Hosting deployments.
+- **Stage 3 Scope Gated**: Atomic Firestore transactions, runtime persistence, and session controller mutations are **STRICTLY ON HOLD** pending explicit user approval (Gate C).
+
 

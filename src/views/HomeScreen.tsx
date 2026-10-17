@@ -13,10 +13,11 @@ import {
   Clock,
   ChevronRight,
   Stethoscope,
-  BookOpen,
   Check,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Trophy,
+  BookOpen,
 } from 'lucide-react';
 
 export interface HomeScreenProps {
@@ -27,6 +28,7 @@ export interface HomeScreenProps {
   onStartSession: () => void;
   onNavigateProfile?: () => void;
   onNavigatePowerUps?: () => void;
+  onNavigateLeaderboard?: () => void;
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: string;
@@ -41,6 +43,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onStartSession,
   onNavigateProfile,
   onNavigatePowerUps,
+  onNavigateLeaderboard,
   isLoading = false,
   isError = false,
   errorMessage = 'Unable to load your progress.',
@@ -49,7 +52,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const powerUps = PowerUpService.calculateInventory(userStats);
 
   // Today's training lifecycle states
-  const isCompleted = dailyStatus === 'REVIEW_VIEWED';
+  const isCompleted = dailyStatus === 'REVIEW_VIEWED' || dailyStatus === 'REVIEW_COMPLETED' || dailyStatus === 'COMPLETED';
   const isReviewPending = dailyStatus === 'QUESTIONS_COMPLETED';
   const isInProgress = dailyStatus === 'IN_PROGRESS';
 
@@ -238,14 +241,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-1">
               <Flame className="w-4 h-4 fill-amber-500" />
             </div>
-            <span className="text-base font-black text-content-primary">
-              {userStats.currentStreak} {userStats.currentStreak === 1 ? 'Day' : 'Days'}
+            <span className="text-base sm:text-lg font-black text-content-primary">
+              {userStats.currentStreak}
             </span>
-            <span className="text-[11px] font-semibold text-content-secondary">Streak</span>
+            <span className="text-[11px] font-semibold text-content-secondary">
+              {userStats.currentStreak === 1 ? 'Day Streak' : 'Days Streak'}
+            </span>
           </Card>
 
           {/* Total XP (Learning Points) */}
-          <Card padding="sm" className="flex flex-col items-center justify-center text-center">
+          <Card
+            padding="sm"
+            className={`flex flex-col items-center justify-center text-center transition-all ${
+              onNavigateLeaderboard ? 'cursor-pointer hover:bg-brand-50/50 active:bg-brand-50' : ''
+            }`}
+            onClick={onNavigateLeaderboard}
+            aria-label={onNavigateLeaderboard ? 'View Leaderboard' : undefined}
+          >
             <div className="w-8 h-8 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center mb-1">
               <Zap className="w-4 h-4 fill-brand-600" />
             </div>
@@ -265,12 +277,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </Card>
         </div>
 
-        {/* 4. Demo Content Notice */}
-        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-content-secondary leading-relaxed">
-          <span className="font-bold text-content-primary">Phase 1 Development Prototype: </span>
-          All questions and stethoscope recordings are demonstration content intended for software validation. Clinician validation is required before field deployment.
-        </div>
+        {/* 4. Community Leaderboard Entry Point */}
+        {onNavigateLeaderboard && (
+          <Card
+            padding="md"
+            className="border-2 border-amber-200/90 bg-gradient-to-r from-amber-50/70 to-yellow-50/50 hover:bg-amber-50 transition-all cursor-pointer shadow-soft group"
+            onClick={onNavigateLeaderboard}
+            aria-label="Community Leaderboard"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <Trophy className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-content-primary leading-tight">
+                    Community Leaderboard
+                  </h4>
+                  <p className="text-[11px] text-content-secondary mt-0.5">
+                    See top performers and your community standing
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </Card>
+        )}
       </main>
     </div>
   );
 };
+

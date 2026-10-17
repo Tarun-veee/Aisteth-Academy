@@ -10,7 +10,9 @@ export type DailyProgressStatus =
   | 'NOT_STARTED'
   | 'IN_PROGRESS'
   | 'QUESTIONS_COMPLETED'
-  | 'REVIEW_VIEWED';
+  | 'REVIEW_COMPLETED'
+  | 'REVIEW_VIEWED'
+  | 'COMPLETED';
 
 export interface AnswerRecord {
   questionId: string;
@@ -19,6 +21,8 @@ export interface AnswerRecord {
   evaluation: AnswerEvaluationResult;
   timestamp: number;
 }
+
+export type BranchState = 'MAIN' | 'FOLLOW_UP' | 'REATTEMPT_MAIN';
 
 export interface DailySessionData {
   sessionId: string;
@@ -33,6 +37,10 @@ export interface DailySessionData {
   totalQuestions: number;
   totalXpEarned: number;
   correctCount: number;
+  branchState?: BranchState;
+  activeMainQuestionId?: string;
+  activeFollowUpQuestionId?: string | null;
+  isReattempt?: boolean;
   fiftyFiftyEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
   learnClueRevealed?: Record<number, boolean>;
 }
@@ -50,6 +58,21 @@ export interface SessionState {
   correctCount: number;
   questionsCompleted: boolean;
   reviewViewed: boolean;
+  branchState?: BranchState;
+  activeMainQuestionId?: string;
+  activeFollowUpQuestionId?: string | null;
+  activeFollowUpQuestion?: Question | null;
+  isReattempt?: boolean;
+  isSubmitting?: boolean;
+  pendingIdempotencyKey?: string | null;
+  submissionError?: string | null;
+  serverPendingTransition?: {
+    branchState: BranchState;
+    currentQuestionIndex: number;
+    isSessionComplete: boolean;
+    totalXpEarned: number;
+    correctCount: number;
+  } | null;
   startTime: number | null;
   endTime: number | null;
   fiftyFiftyEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
@@ -85,9 +108,43 @@ export interface UserStats {
 export const SESSION_CONFIG = {
   DEFAULT_SESSION_LENGTH: 10,
   XP_REWARDS: {
+    PRIMARY_CORRECT: 10,
+    FOLLOW_UP_CORRECT: 0,
     MCQ_CORRECT: 5,
     TRUE_FALSE_CORRECT: 5,
     PRACTICAL_CORRECT: 10, // IMAGE_TAP, STEP_ORDER, AUDIO_DISCRIMINATION
-    SESSION_COMPLETION_BONUS: 10,
+    SESSION_COMPLETION_BONUS: 0,
   }
 } as const;
+
+export type ReviewStatus = 'UNREVIEWED' | 'IN_REVIEW' | 'REVIEWED' | 'BOOKMARKED';
+
+export interface UnsolvedQuestionDoc {
+  id: string; // activePrimaryId
+  mainQuestionId: string;
+  followUpQuestionId: string;
+  topic?: string;
+  difficultyRank?: number;
+  failCount: number;
+  initialReason: 'FOLLOW_UP_FAILED' | 'REATTEMPT_FAILED';
+  lastFailedReason: 'FOLLOW_UP_FAILED' | 'REATTEMPT_FAILED';
+  firstFailedSessionId: string;
+  lastFailedSessionId: string;
+  isResolved: boolean;
+  reviewStatus: ReviewStatus;
+  reviewedAt?: string | null;
+  reviewNotes?: string;
+  createdAt?: any;
+  updatedAt?: any;
+  firstFailedAt?: any;
+  lastFailedAt?: any;
+}
+
+export interface UnsolvedQuestionItem {
+  record: UnsolvedQuestionDoc;
+  mainQuestion: Question;
+  followUpQuestion: Question | null;
+}
+
+
+

@@ -88,14 +88,24 @@ export const AudioPlayerCard: React.FC<AudioPlayerCardProps> = ({
 
   return (
     <div
+      role={onSelect ? 'radio' : undefined}
+      aria-checked={onSelect ? selected : undefined}
+      tabIndex={onSelect && !disabled ? 0 : undefined}
+      aria-disabled={disabled}
       onClick={() => {
         if (!disabled && onSelect) onSelect();
+      }}
+      onKeyDown={(e) => {
+        if (!disabled && onSelect && (e.key === ' ' || e.key === 'Enter')) {
+          e.preventDefault();
+          onSelect();
+        }
       }}
       className={`relative p-4 rounded-2xl transition-all border-2 select-none ${
         selected
           ? 'bg-brand-50/70 border-brand-600 shadow-soft'
           : 'bg-surface-white border-slate-200 hover:border-slate-300'
-      } ${disabled ? 'opacity-90' : 'cursor-pointer active:scale-[0.99]'}`}
+      } ${disabled ? 'opacity-90' : 'cursor-pointer active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-hidden'}`}
     >
       <audio
         ref={audioRef}
