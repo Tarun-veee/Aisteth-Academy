@@ -41,8 +41,6 @@ export interface DailySessionData {
   activeMainQuestionId?: string;
   activeFollowUpQuestionId?: string | null;
   isReattempt?: boolean;
-  fiftyFiftyEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
-  learnClueRevealed?: Record<number, boolean>;
 }
 
 export interface SessionState {
@@ -75,8 +73,6 @@ export interface SessionState {
   } | null;
   startTime: number | null;
   endTime: number | null;
-  fiftyFiftyEliminatedOptions?: Record<number, ('option_a' | 'option_b' | 'option_c' | 'option_d')[]>;
-  learnClueRevealed?: Record<number, boolean>;
 }
 
 export interface StoredSessionRecord {
@@ -102,7 +98,6 @@ export interface UserStats {
   completedQuestionsCount: number;
   completedSessionsCount: number;
   totalCorrectAnswersCount: number; // Cumulative correct answers
-  streakShieldConsumed?: boolean;
 }
 
 export const SESSION_CONFIG = {

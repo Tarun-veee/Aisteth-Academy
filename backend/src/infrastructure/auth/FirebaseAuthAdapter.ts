@@ -109,6 +109,14 @@ export class FirebaseAuthAdapter implements IAuthProvider {
   async generatePasswordResetLink(email: string): Promise<string> {
     return adminAuth.generatePasswordResetLink(email);
   }
+
+  async updateUserPassword(uid: string, password: string): Promise<void> {
+    await adminAuth.updateUser(uid, { password });
+  }
+
+  async updateUserDisabled(uid: string, disabled: boolean): Promise<void> {
+    await adminAuth.updateUser(uid, { disabled });
+  }
 }
 
 export const defaultAuthProvider = new FirebaseAuthAdapter();

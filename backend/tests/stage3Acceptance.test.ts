@@ -66,6 +66,10 @@ class MockFirestoreStage3Store {
               const data = this.submissions.get(path);
               return data ? { exists: true, data: () => JSON.parse(JSON.stringify(data)) } : { exists: false, data: () => undefined };
             }
+            if (path.includes('/attempts/')) {
+              const data = this.attempts.get(path);
+              return data ? { exists: true, data: () => JSON.parse(JSON.stringify(data)) } : { exists: false, data: () => undefined };
+            }
             if (path.includes('/unsolvedQuestions/')) {
               const data = this.unsolvedQuestions.get(path);
               return data ? { exists: true, data: () => JSON.parse(JSON.stringify(data)) } : { exists: false, data: () => undefined };
@@ -480,7 +484,7 @@ describe('RBSK Learning Engine — Stage 3 Acceptance Suite (TC-01 through TC-20
   // -------------------------------------------------------------------------
   // TC-08: Main Incorrect -> Remedial Branch Transition
   // -------------------------------------------------------------------------
-  it('TC-08: transitions to FOLLOW_UP branch on incorrect Main answer without advancing question index', async () => {
+  it('TC-08: transitions to FOLLOW_UP branch on incorrect Main answer advancing to follow-up slot', async () => {
     const idemKey = `idem_${testSessionId}_q0_MAIN_incorrect`;
     const result = await repo.recordAttemptAtomic({
       uid: testUid,
@@ -494,7 +498,7 @@ describe('RBSK Learning Engine — Stage 3 Acceptance Suite (TC-01 through TC-20
       branchState: 'MAIN',
     });
 
-    expect(result.currentQuestionIndex).toBe(0);
+    expect(result.currentQuestionIndex).toBe(1);
     expect(result.branchState).toBe('FOLLOW_UP');
     expect(result.xpAwarded).toBe(0);
     expect(result.totalXpEarned).toBe(0);
@@ -502,35 +506,36 @@ describe('RBSK Learning Engine — Stage 3 Acceptance Suite (TC-01 through TC-20
 
     const session = store.sessions.get(`users/${testUid}/dailySessions/${testSessionId}`);
     expect(session.branchState).toBe('FOLLOW_UP');
+    expect(session.currentQuestionIndex).toBe(1);
     expect(session.activeMainQuestionId).toBe('MG-AIA-01-TH');
     expect(session.activeFollowUpQuestionId).toBe('MG-AIA-01-PR');
   });
 
   // -------------------------------------------------------------------------
-  // TC-09: Follow-Up Correct -> Primary Reattempt Transition
+  // TC-09: Follow-Up Correct -> Immediate Item Conclusion
   // -------------------------------------------------------------------------
-  it('TC-09: transitions from FOLLOW_UP to REATTEMPT_MAIN on correct follow-up without awarding XP', async () => {
-    // Setup session in FOLLOW_UP state
+  it('TC-09: concludes item immediately on correct follow-up and advances to next Main slot without reattempt', async () => {
+    // Setup session in FOLLOW_UP state at index 1
     store.setSession(testSessionId, {
       sessionId: testSessionId,
       uid: testUid,
       status: 'IN_PROGRESS',
       questionsCompleted: false,
-      currentQuestionIndex: 0,
+      currentQuestionIndex: 1,
       totalXpEarned: 0,
       correctCount: 0,
-      questionIds: curriculum10,
+      questionIds: ['MG-AIA-01-TH', 'MG-AIA-01-PR', ...curriculum10.slice(1, 9)],
       branchState: 'FOLLOW_UP',
       activeMainQuestionId: 'MG-AIA-01-TH',
       activeFollowUpQuestionId: 'MG-AIA-01-PR',
     });
 
-    const idemKey = `idem_${testSessionId}_q0_FOLLOW_UP_nonce_correct_1`;
+    const idemKey = `idem_${testSessionId}_q1_FOLLOW_UP_nonce_correct_1`;
     const result = await repo.recordAttemptAtomic({
       uid: testUid,
       sessionId: testSessionId,
       questionId: 'MG-AIA-01-PR',
-      questionIndex: 0,
+      questionIndex: 1,
       userAnswerPayload: { selected_option: 'option_b' },
       selectedOption: 'option_b',
       evaluation: { is_correct: true, awarded_xp: 0, question_id: 'MG-AIA-01-PR', feedback_message: 'Correct', explanation: '' },
@@ -538,14 +543,14 @@ describe('RBSK Learning Engine — Stage 3 Acceptance Suite (TC-01 through TC-20
       branchState: 'FOLLOW_UP',
     });
 
-    expect(result.currentQuestionIndex).toBe(0);
-    expect(result.branchState).toBe('REATTEMPT_MAIN');
+    expect(result.currentQuestionIndex).toBe(2);
+    expect(result.branchState).toBe('MAIN');
     expect(result.xpAwarded).toBe(0);
     expect(result.totalXpEarned).toBe(0);
 
     const session = store.sessions.get(`users/${testUid}/dailySessions/${testSessionId}`);
-    expect(session.branchState).toBe('REATTEMPT_MAIN');
-    expect(session.activeMainQuestionId).toBe('MG-AIA-01-TH');
+    expect(session.branchState).toBe('MAIN');
+    expect(session.currentQuestionIndex).toBe(2);
     expect(session.activeFollowUpQuestionId).toBeNull();
   });
 
@@ -987,7 +992,9 @@ describe('RBSK Learning Engine — Stage 3 Acceptance Suite (TC-01 through TC-20
       totalXp: 190,
       completedQuestionsCount: 19,
       lifetimeCompletedQuestionIds: ['MG-AIL-01-TH'],
+      lastActiveDate: '2026-10-11',
       learningState: {
+        lastActiveDate: '2026-10-11',
         totalXp: 190,
         completedQuestionsCount: 19,
         currentStreak: 2,

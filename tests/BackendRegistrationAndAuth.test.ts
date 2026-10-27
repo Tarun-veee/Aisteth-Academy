@@ -142,9 +142,14 @@ describe('Phase 2.2: Username Utilities & Validation', () => {
       expect(() => validateTraineeRegistrationInput(invalidEmailPayload)).toThrow('valid optional email');
     });
 
-    it('rejects registration when state or district are missing', () => {
-      expect(() => validateTraineeRegistrationInput({ ...validPayload, state: '' })).toThrow('State selection is required');
-      expect(() => validateTraineeRegistrationInput({ ...validPayload, district: '' })).toThrow('District selection is required');
+    it('allows registration when state or district are missing (optional legacy fields)', () => {
+      const withoutLocation = { ...validPayload };
+      delete (withoutLocation as any).state;
+      delete (withoutLocation as any).district;
+      const validated = validateTraineeRegistrationInput(withoutLocation);
+      expect(validated.username).toBe(validPayload.username);
+      expect(validated.district).toBeUndefined();
+      expect(validated.state).toBeUndefined();
     });
   });
 });

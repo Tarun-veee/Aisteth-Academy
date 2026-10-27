@@ -28,9 +28,9 @@ export interface TraineeRegistrationInput {
   password: string;
   displayName: string;
   designation: string;
-  district: string;
-  state: string;
   healthSubCentre?: string;
+  district?: string; // Optional legacy parameter
+  state?: string;    // Optional legacy parameter
   optionalEmail?: string;
 }
 
@@ -163,6 +163,13 @@ export class AuthService {
       const profile = res.profile;
       const stats = res.stats;
 
+      if (!res.token) {
+        return {
+          success: false,
+          error: 'Authentication failed: No token returned from server.'
+        };
+      }
+
       // 2. Cache non-sensitive profile and stats in IndexedDB
       await this.storageRepository.saveUserProfile(profile);
       await this.storageRepository.saveUserStats(stats);
@@ -249,11 +256,20 @@ export class AuthService {
         password,
         displayName: displayName.trim(),
         designation: designation.trim(),
-        district: district.trim(),
-        state: state.trim(),
+        ...(district ? { district: district.trim() } : {}),
+        ...(state ? { state: state.trim() } : {}),
         healthSubCentre: (healthSubCentre || '').trim(),
         optionalEmail: (optionalEmail || '').trim(),
       });
+
+      if (!res.success || res.requiresLogin || !res.token) {
+        return {
+          success: false,
+          requiresLogin: true,
+          error: res.error || 'Account created successfully, but automatic session creation failed. Please sign in with your credentials.',
+          profile: res.profile,
+        };
+      }
 
       const newProfile = res.profile;
       const stats = res.stats || DEFAULT_USER_STATS;
@@ -289,8 +305,6 @@ export class AuthService {
           role: designation.trim(),
           healthSubCentre: (healthSubCentre || '').trim(),
           centerName: (healthSubCentre || '').trim(),
-          district: district.trim(),
-          state: state.trim(),
           email: optionalEmail?.trim() || undefined,
           createdAt: new Date().toISOString()
         };
@@ -333,8 +347,8 @@ export class AuthService {
       password: payload.password,
       displayName: payload.name,
       designation: payload.role,
-      district: payload.district,
-      state: payload.state,
+      ...(payload.district ? { district: payload.district } : {}),
+      ...(payload.state ? { state: payload.state } : {}),
       healthSubCentre: payload.healthSubCentre,
       optionalEmail: payload.identifier.includes('@') ? payload.identifier : undefined,
     });

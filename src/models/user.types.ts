@@ -17,10 +17,9 @@ export interface UserProfile {
     | 'Anganwadi Worker'
     | 'Health Volunteer'
     | string;
+  systemRole?: 'TRAINEE' | 'SUPERVISOR' | 'CONTENT_ADMIN' | 'PLATFORM_ADMIN' | string;
   healthSubCentre?: string;
   centerName?: string;
-  district?: string;
-  state?: string;
   createdAt?: string;
 }
 
@@ -43,6 +42,5 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   name: 'Frontline Trainee',
   role: 'ASHA_WORKER',
   centerName: 'Community Health Centre',
-  district: 'Demo District',
-  state: 'Demo State'
+  healthSubCentre: 'Community Health Centre',
 };

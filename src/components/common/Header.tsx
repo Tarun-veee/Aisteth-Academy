@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, Flame, Zap, Sparkles, User } from 'lucide-react';
+import { ChevronLeft, Flame, Zap, User } from 'lucide-react';
 
 export interface HeaderProps {
   title?: string;
@@ -7,9 +7,7 @@ export interface HeaderProps {
   showBack?: boolean;
   streakCount?: number;
   xpCount?: number;
-  unlockedPowerUpsCount?: number;
   onNavigateProfile?: () => void;
-  onNavigatePowerUps?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,9 +16,7 @@ export const Header: React.FC<HeaderProps> = ({
   showBack = false,
   streakCount = 0,
   xpCount = 0,
-  unlockedPowerUpsCount,
   onNavigateProfile,
-  onNavigatePowerUps,
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-surface-white/95 backdrop-blur-sm border-b border-slate-200/80 px-3 sm:px-4 py-2 select-none">
@@ -54,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
           </h1>
         </div>
 
-        {/* Right: Exactly 4 Items (Streak, Learning Points, Power-Ups, Profile) */}
+        {/* Right: Exactly 3 Items (Streak, Learning Points, Profile) */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* 1. Streak Status Indicator */}
           <div
@@ -76,25 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span>{xpCount}</span>
           </div>
 
-          {/* 3. Power-Ups Icon Button (Navigates to Power-Ups Screen) */}
-          {onNavigatePowerUps && (
-            <button
-              type="button"
-              onClick={onNavigatePowerUps}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 active:bg-amber-200 text-amber-700 flex items-center justify-center transition-all relative cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-95 shrink-0 min-w-[38px] sm:min-w-[44px] min-h-[38px] sm:min-h-[44px]"
-              aria-label="Power-Ups"
-              title={`Power-Ups (${unlockedPowerUpsCount || 0} Unlocked)`}
-            >
-              <Sparkles className="w-4 h-4 text-amber-600" />
-              {typeof unlockedPowerUpsCount === 'number' && unlockedPowerUpsCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-2xs">
-                  {unlockedPowerUpsCount}
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* 4. Profile Icon Button (Navigates to Profile Screen) */}
+          {/* 3. Profile Icon Button (Navigates to Profile Screen) */}
           {onNavigateProfile && (
             <button
               type="button"

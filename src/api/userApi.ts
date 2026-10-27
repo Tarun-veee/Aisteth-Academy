@@ -12,8 +12,6 @@ export interface UpdateUserProfilePayload {
   displayName?: string;
   role?: string;
   designation?: string;
-  district?: string;
-  state?: string;
   healthSubCentre?: string;
   centerName?: string;
   email?: string;
@@ -59,14 +57,6 @@ export const userApi = {
       body.designation = resolvedRole.trim();
     }
 
-    if (payload.district !== undefined) {
-      body.district = payload.district.trim();
-    }
-
-    if (payload.state !== undefined) {
-      body.state = payload.state.trim();
-    }
-
     const resolvedCenter = payload.healthSubCentre !== undefined ? payload.healthSubCentre : payload.centerName;
     if (resolvedCenter !== undefined) {
       body.healthSubCentre = resolvedCenter.trim();
@@ -83,3 +73,4 @@ export const userApi = {
     });
   },
 };
+

@@ -2,13 +2,12 @@ import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { ProgressionService } from '../src/services/ProgressionService';
-import { PowerUpService } from '../src/services/PowerUpService';
 import { UserStats } from '../src/models/session.types';
 import { HomeScreen } from '../src/views/HomeScreen';
 import { ProfileScreen } from '../src/views/ProfileScreen';
 import { ForgotPasswordScreen } from '../src/views/ForgotPasswordScreen';
 
-describe('HomeScreen Progression & Power-Up Services', () => {
+describe('HomeScreen Progression & Learning Services', () => {
   const baseStats: UserStats = {
     totalXp: 0,
     currentStreak: 0,
@@ -82,140 +81,7 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(nanProg.currentXp).toBe(0);
   });
 
-  // 4. Official Power-Up Names
-  it('uses official names 50/50, LEARN, STREAK SHIELD and contains exactly 3 power-ups', () => {
-    const inventory = PowerUpService.calculateInventory(baseStats);
-    expect(inventory.items.length).toBe(2); // 50/50 and LEARN
-    const fiftyFifty = inventory.items.find((i) => i.id === 'FIFTY_FIFTY')!;
-    const learn = inventory.items.find((i) => i.id === 'LEARN')!;
-
-    expect(fiftyFifty.name).toBe('50/50');
-    expect(learn.name).toBe('LEARN');
-    expect(inventory.streakShield.name).toBe('STREAK SHIELD');
-
-    // Verify HINT and RETRY are completely absent
-    expect(inventory.items.some((i) => (i.id as string) === 'HINT')).toBe(false);
-    expect(inventory.items.some((i) => (i.id as string) === 'RETRY')).toBe(false);
-  });
-
-  // 5. 50/50 unlock boundary (19 streak -> locked, 20 streak -> unlocked)
-  it('enforces 50/50 unlock strictly at 20-day streak', () => {
-    // 19-day streak + 500 questions = LOCKED
-    const stats19: UserStats = {
-      ...baseStats,
-      currentStreak: 19,
-      completedQuestionsCount: 500,
-    };
-    const inv19 = PowerUpService.calculateInventory(stats19);
-    const ff19 = inv19.items.find((i) => i.id === 'FIFTY_FIFTY')!;
-    expect(ff19.status).toBe('LOCKED');
-    expect(ff19.isUnlocked).toBe(false);
-    expect(ff19.unlockCurrent).toBe(19);
-    expect(ff19.unlockTarget).toBe(20);
-
-    // 20-day streak = UNLOCKED
-    const stats20: UserStats = {
-      ...baseStats,
-      currentStreak: 20,
-    };
-    const inv20 = PowerUpService.calculateInventory(stats20);
-    const ff20 = inv20.items.find((i) => i.id === 'FIFTY_FIFTY')!;
-    expect(ff20.status).toBe('AVAILABLE');
-    expect(ff20.isUnlocked).toBe(true);
-    expect(ff20.unlockCurrent).toBe(20);
-  });
-
-  // 6. LEARN unlock boundary (99 answered -> locked, 100 answered -> unlocked)
-  it('enforces LEARN unlock strictly at 100 questions answered', () => {
-    // 99 answered + 50 streak = LOCKED
-    const stats99: UserStats = {
-      ...baseStats,
-      completedQuestionsCount: 99,
-      currentStreak: 50,
-    };
-    const inv99 = PowerUpService.calculateInventory(stats99);
-    const learn99 = inv99.items.find((i) => i.id === 'LEARN')!;
-    expect(learn99.status).toBe('LOCKED');
-    expect(learn99.isUnlocked).toBe(false);
-    expect(learn99.unlockCurrent).toBe(99);
-    expect(learn99.unlockTarget).toBe(100);
-
-    // 100 answered = UNLOCKED
-    const stats100: UserStats = {
-      ...baseStats,
-      completedQuestionsCount: 100,
-    };
-    const inv100 = PowerUpService.calculateInventory(stats100);
-    const learn100 = inv100.items.find((i) => i.id === 'LEARN')!;
-    expect(learn100.status).toBe('AVAILABLE');
-    expect(learn100.isUnlocked).toBe(true);
-    expect(learn100.unlockCurrent).toBe(100);
-  });
-
-  // 7. STREAK SHIELD unlock boundary (29-day streak -> locked, 30-day streak -> unlocked)
-  it('enforces STREAK SHIELD unlock strictly at 30-day streak', () => {
-    // 29-day streak + 500 XP = LOCKED
-    const stats29: UserStats = {
-      ...baseStats,
-      currentStreak: 29,
-      totalXp: 500,
-    };
-    const inv29 = PowerUpService.calculateInventory(stats29);
-    expect(inv29.streakShield.status).toBe('LOCKED');
-    expect(inv29.streakShield.isUnlocked).toBe(false);
-    expect(inv29.streakShield.unlockCurrent).toBe(29);
-    expect(inv29.streakShield.unlockTarget).toBe(30);
-
-    // 30-day streak = UNLOCKED
-    const stats30: UserStats = {
-      ...baseStats,
-      currentStreak: 30,
-    };
-    const inv30 = PowerUpService.calculateInventory(stats30);
-    expect(inv30.streakShield.status).toBe('AVAILABLE');
-    expect(inv30.streakShield.isUnlocked).toBe(true);
-    expect(inv30.streakShield.unlockCurrent).toBe(30);
-  });
-
-  // 8. Unrelated Counter Isolation
-  it('does not incorrectly unlock power-ups from unrelated counters', () => {
-    // 20-day streak with 0 questions answered unlocks 50/50 but NOT LEARN
-    const statsStreakOnly: UserStats = {
-      ...baseStats,
-      currentStreak: 20,
-      completedQuestionsCount: 0,
-    };
-    const invStreak = PowerUpService.calculateInventory(statsStreakOnly);
-    expect(invStreak.items.find((i) => i.id === 'FIFTY_FIFTY')!.isUnlocked).toBe(true);
-    expect(invStreak.items.find((i) => i.id === 'LEARN')!.isUnlocked).toBe(false);
-    expect(invStreak.streakShield.isUnlocked).toBe(false);
-
-    // 100 questions with 0 streak unlocks LEARN but NOT 50/50 or STREAK SHIELD
-    const statsQuestionsOnly: UserStats = {
-      ...baseStats,
-      completedQuestionsCount: 100,
-      currentStreak: 0,
-    };
-    const invQ = PowerUpService.calculateInventory(statsQuestionsOnly);
-    expect(invQ.items.find((i) => i.id === 'FIFTY_FIFTY')!.isUnlocked).toBe(false);
-    expect(invQ.items.find((i) => i.id === 'LEARN')!.isUnlocked).toBe(true);
-    expect(invQ.streakShield.isUnlocked).toBe(false);
-  });
-
-  it('correctly handles consumed streak shield override', () => {
-    const stats: UserStats = {
-      ...baseStats,
-      completedQuestionsCount: 60,
-      currentStreak: 35,
-      streakShieldConsumed: true,
-    };
-
-    const inventory = PowerUpService.calculateInventory(stats);
-    expect(inventory.streakShield.isUnlocked).toBe(true);
-    expect(inventory.streakShield.status).toBe('CONSUMED');
-  });
-
-  // 9. Profile/Progress entry point and Screen
+  // 4. Profile/Progress entry point and Screen
   it('ProfileScreen renders with back callback', () => {
     let backed = false;
     const profileEl = React.createElement(ProfileScreen, {
@@ -279,8 +145,8 @@ describe('HomeScreen Progression & Power-Up Services', () => {
     expect(completedEl.props.dailyStatus).toBe('REVIEW_VIEWED');
   });
 
-  // 13. Top-Right Header Action Cluster Tests
-  it('HomeScreen passes level, power-ups, and profile navigation props to Header', () => {
+  // 8. Top-Right Header Action Cluster Tests
+  it('HomeScreen passes profile navigation props to Header', () => {
     let navProfileTriggered = false;
 
     const homeEl = React.createElement(HomeScreen, {

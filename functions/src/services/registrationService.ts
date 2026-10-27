@@ -135,8 +135,8 @@ export class RegistrationService {
           organizationId: defaultOrgId, // Strictly server-authoritative
           designation: payload.designation,
           healthSubCentre: payload.healthSubCentre || '',
-          district: payload.district,
-          state: payload.state,
+          ...(payload.district ? { district: payload.district } : {}),
+          ...(payload.state ? { state: payload.state } : {}),
           trainingTimeZone: 'Asia/Kolkata', // India standard timezone
           learningState: {
             totalXp: 0,

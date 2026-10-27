@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import { IUserRepository, RawLeaderboardEntry } from '../../domain/interfaces/IUserRepository.js';
 import { UserProfileDoc, UserLearningState } from '../../domain/models/user.model.js';
 import { ProgressionService } from '../../domain/rules/ProgressionService.js';
+import { normalizePhoneNumber } from '../../domain/rules/phone.js';
 import { adminDb } from '../config/firebaseAdmin.js';
 
 export const RESERVATION_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
@@ -23,9 +24,13 @@ export class FirestoreUserRepository implements IUserRepository {
       organizationId: data.organizationId || 'org_rbsk_national',
       designation: data.designation || '',
       healthSubCentre: data.healthSubCentre || '',
-      district: data.district || '',
-      state: data.state || '',
+      ...(data.district ? { district: data.district } : {}),
+      ...(data.state ? { state: data.state } : {}),
       trainingTimeZone: data.trainingTimeZone || 'Asia/Kolkata',
+      phoneNumber: data.phoneNumber || undefined,
+      onboardingStatus: data.onboardingStatus || 'NOT_INITIATED',
+      whatsappOnboardedAt: data.whatsappOnboardedAt || null,
+      onboardingError: data.onboardingError || null,
       learningState: {
         totalXp: data.learningState?.totalXp as any,
         currentStreak: data.learningState?.currentStreak ?? 0,
@@ -35,8 +40,6 @@ export class FirestoreUserRepository implements IUserRepository {
         completedSessionsCount: data.learningState?.completedSessionsCount ?? 0,
         totalCorrectAnswersCount: data.learningState?.totalCorrectAnswersCount ?? 0,
         currentLevel: data.learningState?.currentLevel ?? 1,
-        streakShieldActive: data.learningState?.streakShieldActive ?? false,
-        streakShieldConsumed: data.learningState?.streakShieldConsumed ?? false,
       },
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
@@ -89,28 +92,69 @@ export class FirestoreUserRepository implements IUserRepository {
     });
   }
 
-  async releaseUsername(username: string, reservationId: string): Promise<void> {
+  async releaseUsername(username: string, reservationId: string, ownerUid?: string): Promise<void> {
     const usernameRef = adminDb.doc(`usernames/${username}`);
     await adminDb.runTransaction(async (transaction) => {
       const docSnapshot = await transaction.get(usernameRef);
       if (docSnapshot.exists) {
         const data = docSnapshot.data();
-        if (data?.reservationId === reservationId && data?.status === 'RESERVED') {
-          transaction.delete(usernameRef);
+        if (data?.reservationId === reservationId) {
+          if (data?.status === 'RESERVED' || (ownerUid && data?.uid === ownerUid)) {
+            transaction.delete(usernameRef);
+          }
         }
       }
     });
   }
 
-  async activateUsername(username: string, uid: string): Promise<void> {
+  async activateUsername(username: string, uid: string, reservationId?: string): Promise<void> {
     const usernameRef = adminDb.doc(`usernames/${username}`);
-    await usernameRef.set({
-      username,
-      uid,
-      status: 'ACTIVE',
-      activatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
+    await adminDb.runTransaction(async (transaction) => {
+      const docSnapshot = await transaction.get(usernameRef);
+      if (!docSnapshot.exists) {
+        throw new Error(`Username reservation for '@${username}' was not found.`);
+      }
+      const data = docSnapshot.data();
+
+      if (data?.status === 'ACTIVE') {
+        if (data?.uid === uid) {
+          if (reservationId && data?.reservationId && data?.reservationId !== reservationId) {
+            throw new Error(`Username '@${username}' is active under a different reservation.`);
+          }
+          return;
+        }
+        throw new Error(`Username '@${username}' is already active for another learner.`);
+      }
+
+      if (data?.status !== 'RESERVED') {
+        throw new Error(`Username '@${username}' is not in RESERVED status (found: ${data?.status}).`);
+      }
+
+      if (!reservationId || data?.reservationId !== reservationId) {
+        throw new Error(`Username reservation ownership mismatch for '@${username}'. A valid matching reservation ID is required.`);
+      }
+
+      const reservedAt = data?.reservedAt as admin.firestore.Timestamp | undefined;
+      const reservedAtMs = (reservedAt && typeof reservedAt.toMillis === 'function') ? reservedAt.toMillis() : 0;
+      const elapsed = reservedAtMs > 0 ? Date.now() - reservedAtMs : RESERVATION_EXPIRATION_MS;
+      if (elapsed >= RESERVATION_EXPIRATION_MS) {
+        throw new Error(`Username reservation for '@${username}' has expired.`);
+      }
+
+      transaction.set(usernameRef, {
+        username,
+        uid,
+        status: 'ACTIVE',
+        reservationId: reservationId || data?.reservationId || '',
+        activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+  }
+
+  async deleteUserProfile(uid: string): Promise<void> {
+    const userRef = adminDb.doc(`users/${uid}`);
+    await userRef.delete();
   }
 
   async createUserProfile(profile: UserProfileDoc): Promise<void> {
@@ -125,9 +169,13 @@ export class FirestoreUserRepository implements IUserRepository {
       organizationId: profile.organizationId,
       designation: profile.designation,
       healthSubCentre: profile.healthSubCentre,
-      district: profile.district,
-      state: profile.state,
+      ...(profile.district ? { district: profile.district } : {}),
+      ...(profile.state ? { state: profile.state } : {}),
       trainingTimeZone: profile.trainingTimeZone,
+      phoneNumber: profile.phoneNumber || null,
+      onboardingStatus: profile.onboardingStatus || 'NOT_INITIATED',
+      whatsappOnboardedAt: profile.whatsappOnboardedAt || null,
+      onboardingError: profile.onboardingError || null,
       learningState: profile.learningState,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -228,6 +276,165 @@ export class FirestoreUserRepository implements IUserRepository {
       .get();
 
     return snapshot.data().count || 0;
+  }
+
+  async findByPhoneNumber(phoneNumber: string): Promise<{ uid: string | null; status: string } | null> {
+    if (!phoneNumber || typeof phoneNumber !== 'string' || !phoneNumber.trim()) {
+      return null;
+    }
+
+    const norm = normalizePhoneNumber(phoneNumber);
+    const canonicalPhone = norm.valid ? norm.normalized : phoneNumber.trim();
+
+    const phoneRef = adminDb.doc(`phone_numbers/${canonicalPhone}`);
+    const snap = await phoneRef.get();
+    if (snap.exists) {
+      const data = snap.data();
+      return {
+        uid: data?.uid || null,
+        status: data?.status || 'UNKNOWN'
+      };
+    }
+
+    // Backward-compatible fallback for users created before phone_numbers collection
+    // Supports: canonical E.164 (+91...), raw 10-digit, leading 0, and 91 prefix
+    const candidates = new Set<string>();
+    candidates.add(canonicalPhone);
+    candidates.add(phoneNumber.trim());
+
+    if (canonicalPhone.startsWith('+91') && canonicalPhone.length === 13) {
+      const raw10 = canonicalPhone.slice(3);
+      candidates.add(raw10);
+      candidates.add(`0${raw10}`);
+      candidates.add(`91${raw10}`);
+    } else if (/^\d{10}$/.test(phoneNumber.trim())) {
+      candidates.add(`+91${phoneNumber.trim()}`);
+      candidates.add(`0${phoneNumber.trim()}`);
+      candidates.add(`91${phoneNumber.trim()}`);
+    }
+
+    const candidateArr = Array.from(candidates).filter(Boolean);
+    if (candidateArr.length > 0) {
+      const userSnap = await adminDb
+        .collection('users')
+        .where('phoneNumber', 'in', candidateArr.slice(0, 10))
+        .limit(1)
+        .get();
+
+      if (!userSnap.empty) {
+        const doc = userSnap.docs[0];
+        return {
+          uid: doc.id,
+          status: 'ACTIVE'
+        };
+      }
+    }
+
+    return null;
+  }
+
+  async findProfileByPhoneNumber(phoneNumber: string): Promise<UserProfileDoc | null> {
+    const phoneRecord = await this.findByPhoneNumber(phoneNumber);
+    if (!phoneRecord || !phoneRecord.uid) {
+      return null;
+    }
+    return this.findByUid(phoneRecord.uid);
+  }
+
+  async reservePhoneNumber(phoneNumber: string, reservationId: string): Promise<boolean> {
+    const phoneRef = adminDb.doc(`phone_numbers/${phoneNumber}`);
+
+    return adminDb.runTransaction(async (transaction) => {
+      const docSnapshot = await transaction.get(phoneRef);
+
+      if (docSnapshot.exists) {
+        const data = docSnapshot.data();
+        if (data?.status === 'ACTIVE') {
+          throw new Error(`Learner with phone number '${phoneNumber}' is already registered.`);
+        }
+        if (data?.status === 'RESERVED') {
+          const reservedAt = data?.reservedAt as admin.firestore.Timestamp | undefined;
+          const reservedAtMs = (reservedAt && typeof reservedAt.toMillis === 'function') ? reservedAt.toMillis() : 0;
+          const elapsed = reservedAtMs > 0 ? Date.now() - reservedAtMs : RESERVATION_EXPIRATION_MS;
+          if (elapsed < RESERVATION_EXPIRATION_MS) {
+            throw new Error(`Registration for phone number '${phoneNumber}' is currently in progress. Please retry in a few moments.`);
+          }
+        }
+      }
+
+      transaction.set(phoneRef, {
+        phoneNumber,
+        uid: null,
+        status: 'RESERVED',
+        reservationId,
+        reservedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    });
+  }
+
+  async releasePhoneNumber(phoneNumber: string, reservationId: string, ownerUid?: string): Promise<void> {
+    const phoneRef = adminDb.doc(`phone_numbers/${phoneNumber}`);
+    await adminDb.runTransaction(async (transaction) => {
+      const docSnapshot = await transaction.get(phoneRef);
+      if (docSnapshot.exists) {
+        const data = docSnapshot.data();
+        if (data?.reservationId === reservationId) {
+          if (data?.status === 'RESERVED' || (ownerUid && data?.uid === ownerUid)) {
+            transaction.delete(phoneRef);
+          }
+        }
+      }
+    });
+  }
+
+  async activatePhoneNumber(phoneNumber: string, uid: string, reservationId?: string): Promise<void> {
+    const phoneRef = adminDb.doc(`phone_numbers/${phoneNumber}`);
+
+    await adminDb.runTransaction(async (transaction) => {
+      const docSnapshot = await transaction.get(phoneRef);
+
+      if (!docSnapshot.exists) {
+        throw new Error(`Phone reservation for '${phoneNumber}' was not found.`);
+      }
+
+      const data = docSnapshot.data();
+
+      if (data?.status === 'ACTIVE') {
+        if (data?.uid === uid) {
+          if (reservationId && data?.reservationId && data?.reservationId !== reservationId) {
+            throw new Error(`Phone number '${phoneNumber}' is active under a different reservation.`);
+          }
+          return;
+        }
+        throw new Error(`Phone number '${phoneNumber}' is already active for another learner.`);
+      }
+
+      if (data?.status !== 'RESERVED') {
+        throw new Error(`Phone number '${phoneNumber}' is not in RESERVED status (found: ${data?.status}).`);
+      }
+
+      if (!reservationId || data?.reservationId !== reservationId) {
+        throw new Error(`Phone reservation ownership mismatch for '${phoneNumber}'. A valid matching reservation ID is required.`);
+      }
+
+      const reservedAt = data?.reservedAt as admin.firestore.Timestamp | undefined;
+      const reservedAtMs = (reservedAt && typeof reservedAt.toMillis === 'function') ? reservedAt.toMillis() : 0;
+      const elapsed = reservedAtMs > 0 ? Date.now() - reservedAtMs : RESERVATION_EXPIRATION_MS;
+      if (elapsed >= RESERVATION_EXPIRATION_MS) {
+        throw new Error(`Phone reservation for '${phoneNumber}' has expired.`);
+      }
+
+      transaction.set(phoneRef, {
+        phoneNumber,
+        uid,
+        status: 'ACTIVE',
+        reservationId: reservationId || data?.reservationId || '',
+        activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
   }
 }
 

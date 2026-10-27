@@ -5,6 +5,7 @@ import { authRouter } from './api/routes/auth.routes.js';
 import { sessionRouter } from './api/routes/session.routes.js';
 import { questionRouter } from './api/routes/question.routes.js';
 import { userRouter } from './api/routes/user.routes.js';
+import { adminRouter } from './api/routes/admin.routes.js';
 import { errorHandler } from './api/middlewares/error.middleware.js';
 import { ENV } from './infrastructure/config/env.js';
 
@@ -55,6 +56,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/sessions', sessionRouter);
 app.use('/api/v1/questions', questionRouter);
 app.use('/api/v1/users', userRouter);
+app.use('/api/v1/admin', adminRouter);
 
 // Global Error Handler
 app.use(errorHandler);

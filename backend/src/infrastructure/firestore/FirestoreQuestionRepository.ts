@@ -138,7 +138,7 @@ export class FirestoreQuestionRepository implements IQuestionRepository {
     const rank = Number(data.Difficulty_Rank || data.difficulty_rank || 1);
     const audience = data.Audience || data.audience || 'RBSK';
     const action = data.Action || data.action || '';
-    const learningObjective = data.learning_objective || data.learningObjective || '';
+    const learningObjective = data.learning_objective || data.learningObjective || data.Action || data.action || '';
     const medGemmaTag = data.MedGemma_Tag || data.medGemma_tag || data.medGemmaTag || '';
 
     if (data.type && data.question_id) {
@@ -186,7 +186,9 @@ export class FirestoreQuestionRepository implements IQuestionRepository {
       option_d: data.Option_D || data.option_d || '',
       correct_answer: correctKey,
       question_type: normalizedQuestionType,
+      Question_Type: normalizedQuestionType,
       follow_up_for: followUpFor,
+      Follow_Up_For: followUpFor,
       difficulty_rank: rank,
       Difficulty_Rank: rank,
       topic,
@@ -194,6 +196,7 @@ export class FirestoreQuestionRepository implements IQuestionRepository {
       audience,
       Audience: audience,
       medGemma_tag: medGemmaTag,
+      MedGemma_Tag: medGemmaTag,
     };
 
     return mcq;

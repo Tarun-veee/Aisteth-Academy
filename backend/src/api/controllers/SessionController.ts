@@ -23,7 +23,7 @@ export class SessionController {
   static async recordAttempt(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const uid = req.user!.uid;
-      const { sessionId, questionId, questionIndex, userAnswerPayload, powerUpsActive, idempotencyKey, selectedOption, branchState } = req.body || {};
+      const { sessionId, questionId, questionIndex, userAnswerPayload, idempotencyKey, selectedOption, branchState } = req.body || {};
 
       if (!sessionId || typeof sessionId !== 'string') {
         res.status(400).json({ success: false, error: 'Session ID is required.' });
@@ -50,7 +50,6 @@ export class SessionController {
         questionId: questionId.trim(),
         questionIndex,
         userAnswerPayload,
-        powerUpsActive: Array.isArray(powerUpsActive) ? powerUpsActive : [],
         ...(idempotencyKey !== undefined && idempotencyKey !== null ? { idempotencyKey: String(idempotencyKey).trim() } : {}),
         ...(selectedOption !== undefined ? { selectedOption } : {}),
         ...(branchState !== undefined ? { branchState } : {}),
@@ -73,3 +72,4 @@ export class SessionController {
     }
   }
 }
+

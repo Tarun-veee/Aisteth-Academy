@@ -181,6 +181,9 @@ export function normalizeQuestion(raw: any): Question {
   const question_type = raw.question_type || raw.questionType || (qId.endsWith('-PR') ? 'Follow-Up' : 'Primary');
   const follow_up_for = raw.follow_up_for !== undefined ? raw.follow_up_for : (raw.followUpFor !== undefined ? raw.followUpFor : null);
 
+  const action = raw.action || raw.Action || '';
+  const learning_objective = raw.learning_objective || raw.learningObjective || action;
+
   return {
     ...raw,
     question_id: qId,
@@ -193,6 +196,9 @@ export function normalizeQuestion(raw: any): Question {
     Question_Type: question_type,
     follow_up_for,
     Follow_Up_For: follow_up_for,
+    learning_objective,
+    action: action || undefined,
+    Action: action || undefined,
     option_a,
     option_b,
     option_c,

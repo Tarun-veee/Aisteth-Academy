@@ -12,9 +12,9 @@ export interface RegisterWithUsernameRequest {
   password: string;
   displayName: string;
   designation: Designation;
-  district: string;
-  state: string;
   healthSubCentre?: string;
+  district?: string; // Optional legacy parameter
+  state?: string;    // Optional legacy parameter
   optionalEmail?: string;
 }
 
@@ -63,8 +63,8 @@ export interface UserProfileDoc {
   organizationId: string;
   designation: Designation;
   healthSubCentre: string;
-  district: string;
-  state: string;
+  district?: string; // Optional legacy field
+  state?: string;    // Optional legacy field
   trainingTimeZone: string;
   learningState: UserLearningState;
   createdAt: FirebaseFirestore.FieldValue | FirebaseFirestore.Timestamp;

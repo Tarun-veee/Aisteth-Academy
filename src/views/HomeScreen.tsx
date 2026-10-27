@@ -4,7 +4,6 @@ import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { Header } from '../components/common/Header';
 import { UserStats, DailyProgressStatus, SESSION_CONFIG } from '../models/session.types';
-import { PowerUpService } from '../services/PowerUpService';
 import {
   Sparkles,
   Flame,
@@ -17,7 +16,6 @@ import {
   AlertCircle,
   RefreshCw,
   Trophy,
-  BookOpen,
 } from 'lucide-react';
 
 export interface HomeScreenProps {
@@ -27,7 +25,6 @@ export interface HomeScreenProps {
   totalQuestionsCount?: number;
   onStartSession: () => void;
   onNavigateProfile?: () => void;
-  onNavigatePowerUps?: () => void;
   onNavigateLeaderboard?: () => void;
   isLoading?: boolean;
   isError?: boolean;
@@ -42,18 +39,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   totalQuestionsCount = SESSION_CONFIG.DEFAULT_SESSION_LENGTH,
   onStartSession,
   onNavigateProfile,
-  onNavigatePowerUps,
   onNavigateLeaderboard,
   isLoading = false,
   isError = false,
   errorMessage = 'Unable to load your progress.',
   onRetry,
 }) => {
-  const powerUps = PowerUpService.calculateInventory(userStats);
 
   // Today's training lifecycle states
-  const isCompleted = dailyStatus === 'REVIEW_VIEWED' || dailyStatus === 'REVIEW_COMPLETED' || dailyStatus === 'COMPLETED';
-  const isReviewPending = dailyStatus === 'QUESTIONS_COMPLETED';
+  const isCompleted =
+    dailyStatus === 'REVIEW_VIEWED' ||
+    dailyStatus === 'REVIEW_COMPLETED' ||
+    dailyStatus === 'COMPLETED' ||
+    dailyStatus === 'QUESTIONS_COMPLETED';
   const isInProgress = dailyStatus === 'IN_PROGRESS';
 
   let buttonText = "START TODAY'S TRAINING";
@@ -65,9 +63,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   } else if (isCompleted) {
     buttonText = "TODAY'S TRAINING COMPLETE";
     buttonIcon = <Check className="w-5 h-5 ml-0.5 text-status-success" />;
-  } else if (isReviewPending) {
-    buttonText = 'VIEW SESSION REVIEW';
-    buttonIcon = <BookOpen className="w-5 h-5 ml-0.5" />;
   } else if (isInProgress) {
     buttonText = "CONTINUE TODAY'S TRAINING";
     buttonIcon = <ChevronRight className="w-5 h-5 ml-0.5" />;
@@ -136,13 +131,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="h-full flex flex-col overflow-y-auto min-h-0 bg-surface-bg">
-      {/* Top Header with 4 Clear Functional Actions */}
+      {/* Top Header with Functional Actions */}
       <Header
         title="AiSteth Academy"
         streakCount={userStats.currentStreak}
         xpCount={userStats.totalXp}
-        unlockedPowerUpsCount={powerUps.totalUnlockedCount}
-        onNavigatePowerUps={onNavigatePowerUps}
         onNavigateProfile={onNavigateProfile}
       />
 

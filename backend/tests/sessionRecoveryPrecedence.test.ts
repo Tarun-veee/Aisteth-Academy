@@ -669,7 +669,7 @@ describe('Phase 2: Idempotency, Receipt Verification, and Authoritative Session 
       expect(user.lifetimeCompletedQuestionIds).toContain(curriculum10[0]);
     });
 
-    it('LRN-02: Incorrect Primary opens linked Follow-Up (branchState FOLLOW_UP, index remains 0, 0 XP)', async () => {
+    it('LRN-02: Incorrect Primary opens linked Follow-Up (branchState FOLLOW_UP, advances to follow-up slot index 1, 0 XP)', async () => {
       const result = await repo.recordAttemptAtomic({
         uid: testUid,
         sessionId: testSessionId,
@@ -680,16 +680,17 @@ describe('Phase 2: Idempotency, Receipt Verification, and Authoritative Session 
       });
 
       expect(result.branchState).toBe('FOLLOW_UP');
-      expect(result.currentQuestionIndex).toBe(0);
+      expect(result.currentQuestionIndex).toBe(1);
       expect(result.xpAwarded).toBe(0);
 
       const session = store.sessions.get(`users/${testUid}/dailySessions/${testSessionId}`);
       expect(session.branchState).toBe('FOLLOW_UP');
+      expect(session.currentQuestionIndex).toBe(1);
       expect(session.activeFollowUpQuestionId).toBe('MG-AIA-01-PR');
     });
 
-    it('LRN-03: Correct Follow-Up CONCLUDES item immediately, advances to index 1 MAIN, NO reattempt', async () => {
-      // 1. Submit incorrect Primary
+    it('LRN-03: Correct Follow-Up CONCLUDES item immediately, advances to index 2 MAIN, NO reattempt', async () => {
+      // 1. Submit incorrect Primary at index 0
       await repo.recordAttemptAtomic({
         uid: testUid,
         sessionId: testSessionId,
@@ -699,12 +700,12 @@ describe('Phase 2: Idempotency, Receipt Verification, and Authoritative Session 
         evaluation: { is_correct: false, awarded_xp: 0, feedback: 'Incorrect' },
       });
 
-      // 2. Submit correct Follow-Up
+      // 2. Submit correct Follow-Up at index 1
       const fuResult = await repo.recordAttemptAtomic({
         uid: testUid,
         sessionId: testSessionId,
         questionId: 'MG-AIA-01-PR',
-        questionIndex: 0,
+        questionIndex: 1,
         branchState: 'FOLLOW_UP',
         userAnswerPayload: { selectedOption: 'option_a' },
         evaluation: { is_correct: true, awarded_xp: 0, feedback: 'Correct follow up' },
@@ -712,17 +713,17 @@ describe('Phase 2: Idempotency, Receipt Verification, and Authoritative Session 
 
       // Crucial requirement: Follow-Up concludes item and rotates to next Primary!
       expect(fuResult.branchState).toBe('MAIN');
-      expect(fuResult.currentQuestionIndex).toBe(1);
+      expect(fuResult.currentQuestionIndex).toBe(2);
       expect(fuResult.xpAwarded).toBe(0);
 
       const session = store.sessions.get(`users/${testUid}/dailySessions/${testSessionId}`);
       expect(session.branchState).toBe('MAIN');
-      expect(session.currentQuestionIndex).toBe(1);
+      expect(session.currentQuestionIndex).toBe(2);
       expect(session.activeFollowUpQuestionId).toBeNull();
     });
 
-    it('LRN-04: Incorrect Follow-Up CONCLUDES item immediately, advances to index 1 MAIN, logs to unsolved questions', async () => {
-      // 1. Submit incorrect Primary
+    it('LRN-04: Incorrect Follow-Up CONCLUDES item immediately, advances to index 2 MAIN, logs to unsolved questions', async () => {
+      // 1. Submit incorrect Primary at index 0
       await repo.recordAttemptAtomic({
         uid: testUid,
         sessionId: testSessionId,
@@ -732,20 +733,25 @@ describe('Phase 2: Idempotency, Receipt Verification, and Authoritative Session 
         evaluation: { is_correct: false, awarded_xp: 0, feedback: 'Incorrect' },
       });
 
-      // 2. Submit incorrect Follow-Up
+      // 2. Submit incorrect Follow-Up at index 1
       const fuResult = await repo.recordAttemptAtomic({
         uid: testUid,
         sessionId: testSessionId,
         questionId: 'MG-AIA-01-PR',
-        questionIndex: 0,
+        questionIndex: 1,
         branchState: 'FOLLOW_UP',
         userAnswerPayload: { selectedOption: 'option_d' },
         evaluation: { is_correct: false, awarded_xp: 0, feedback: 'Incorrect follow up' },
       });
 
       expect(fuResult.branchState).toBe('MAIN');
-      expect(fuResult.currentQuestionIndex).toBe(1);
+      expect(fuResult.currentQuestionIndex).toBe(2);
       expect(fuResult.xpAwarded).toBe(0);
+
+      const session = store.sessions.get(`users/${testUid}/dailySessions/${testSessionId}`);
+      expect(session.branchState).toBe('MAIN');
+      expect(session.currentQuestionIndex).toBe(2);
+      expect(session.activeFollowUpQuestionId).toBeNull();
 
       // Verify unsolved question recorded
       const unsolved = store.unsolvedQuestions.get(`users/${testUid}/unsolvedQuestions/${curriculum10[0]}`);
@@ -814,7 +820,7 @@ describe('Phase 2: Idempotency, Receipt Verification, and Authoritative Session 
       });
 
       const recovered = await repo.reconcileSessionProgressAtomic(testUid, testSessionId);
-      expect(recovered.currentQuestionIndex).toBe(1);
+      expect(recovered.currentQuestionIndex).toBe(2);
       expect(recovered.branchState).toBe('FOLLOW_UP');
       expect(recovered.activeFollowUpQuestionId).toBe('MG-AIA-02-PR');
       expect(recovered.status).toBe('IN_PROGRESS');

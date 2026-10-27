@@ -24,7 +24,6 @@ export interface RecordAttemptAtomicParams {
   questionIndex: number;
   userAnswerPayload: Record<string, any>;
   evaluation: AnswerEvaluationResult;
-  powerUpsActive?: string[];
   idempotencyKey?: string;
   selectedOption?: any;
 }
@@ -60,7 +59,9 @@ export interface ISessionRepository {
   updateUnsolvedQuestion(uid: string, questionId: string, updates: UpdateUnsolvedQuestionParams): Promise<UnsolvedQuestionDoc>;
   getUser(uid: string): Promise<any | null>;
   updateUser(uid: string, updates: Record<string, any>): Promise<void>;
-  getActiveDailySession(uid: string): Promise<DailySessionDoc | null>;
+  getActiveDailySession(uid: string, targetCycleDate?: string): Promise<DailySessionDoc | null>;
   getSessionAttempts(uid: string, sessionId: string): Promise<AttemptDoc[]>;
   reconcileSessionProgressAtomic(uid: string, sessionId: string): Promise<DailySessionDoc>;
+  createDailySessionIfNotExists?(session: DailySessionDoc): Promise<{ session: DailySessionDoc; created: boolean }>;
 }
+

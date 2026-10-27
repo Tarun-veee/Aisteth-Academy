@@ -8,9 +8,9 @@ export interface RegisterPayload {
   password: string;
   displayName: string;
   designation: string;
-  district: string;
-  state: string;
   healthSubCentre?: string;
+  district?: string; // Optional legacy parameter
+  state?: string;    // Optional legacy parameter
   optionalEmail?: string;
 }
 
@@ -21,10 +21,13 @@ export interface LoginPayload {
 
 export interface AuthApiResponse {
   success: boolean;
-  token: string;
+  token?: string;
   profile: UserProfile;
   stats: UserStats;
   message?: string;
+  error?: string;
+  requiresLogin?: boolean;
+  code?: string;
 }
 
 export interface RefreshApiResponse {
@@ -39,7 +42,9 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    setAccessToken(res.token);
+    if (res.token) {
+      setAccessToken(res.token);
+    }
     return res;
   },
 
@@ -48,7 +53,7 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    setAccessToken(res.token);
+    setAccessToken(res.token ?? null);
     return res;
   },
 
@@ -56,7 +61,7 @@ export const authApi = {
     const res = await apiFetch<RefreshApiResponse>('/auth/refresh', {
       method: 'POST',
     });
-    setAccessToken(res.token);
+    setAccessToken(res.token ?? null);
     return res;
   },
 

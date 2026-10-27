@@ -4,37 +4,37 @@ import { HomeScreen } from './views/HomeScreen';
 import { DailySessionScreen } from './views/DailySessionScreen';
 import { QuestionReviewScreen } from './views/QuestionReviewScreen';
 import { ProfileScreen } from './views/ProfileScreen';
-import { PowerUpsScreen } from './views/PowerUpsScreen';
 import { LeaderboardScreen } from './views/LeaderboardScreen';
 import { SignInScreen } from './views/SignInScreen';
 import { SignUpScreen } from './views/SignUpScreen';
 import { ForgotPasswordScreen } from './views/ForgotPasswordScreen';
+import { AdminDashboard } from './views/admin/AdminDashboard';
 import { useLearningSession } from './hooks/useLearningSession';
 import { defaultAuthService } from './services/AuthService';
 import { AuthStatus, AuthView } from './models/auth.types';
 import { UserProfile } from './models/user.types';
 
-type ProtectedViewMode = 'HOME' | 'SESSION' | 'REVIEW' | 'PROFILE' | 'POWER_UPS' | 'UNSOLVED' | 'LEADERBOARD';
+type ProtectedViewMode = 'HOME' | 'SESSION' | 'REVIEW' | 'PROFILE' | 'UNSOLVED' | 'LEADERBOARD' | 'ADMIN';
 
 const VIEW_TO_HASH: Record<ProtectedViewMode, string> = {
   HOME: '',
   SESSION: 'session',
   REVIEW: 'review',
   PROFILE: 'profile',
-  POWER_UPS: 'power-ups',
   UNSOLVED: 'unsolved',
   LEADERBOARD: 'leaderboard',
+  ADMIN: 'admin',
 };
 
 const getProtectedViewFromHash = (): ProtectedViewMode => {
   if (typeof window === 'undefined') return 'HOME';
   const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
   if (rawHash === 'session') return 'SESSION';
-  if (rawHash === 'review') return 'REVIEW';
+  if (rawHash === 'review') return 'HOME';
   if (rawHash === 'profile') return 'PROFILE';
-  if (rawHash === 'power-ups' || rawHash === 'powerups') return 'POWER_UPS';
   if (rawHash === 'unsolved' || rawHash === 'vault') return 'UNSOLVED';
   if (rawHash === 'leaderboard') return 'LEADERBOARD';
+  if (rawHash === 'admin') return 'ADMIN';
   return 'HOME';
 };
 
@@ -59,8 +59,6 @@ export function App() {
     initDailySession,
     setAnswer,
     submitCurrentAnswer,
-    applyFiftyFifty,
-    applyLearn,
     nextQuestion,
     markReviewViewed,
     refreshUserStats,
@@ -104,14 +102,25 @@ export function App() {
       setCurrentView(targetView);
     };
 
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && defaultAuthService.isAuthenticated()) {
+        refreshUserStats();
+        initDailySession();
+      }
+    };
+
     window.addEventListener('hashchange', handleNavigationChange);
     window.addEventListener('popstate', handleNavigationChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('hashchange', handleNavigationChange);
       window.removeEventListener('popstate', handleNavigationChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
     };
-  }, []);
+  }, [refreshUserStats, initDailySession]);
 
   // Silent session rehydration via HttpOnly refresh cookie on application startup
   useEffect(() => {
@@ -154,8 +163,6 @@ export function App() {
         await initDailySession();
       }
       navigateTo('SESSION');
-    } else if (session.dailyStatus === 'QUESTIONS_COMPLETED') {
-      navigateTo('REVIEW');
     }
   };
 
@@ -164,7 +171,7 @@ export function App() {
     navigateBack();
   };
 
-  // Handle completing question and transitioning directly to Session Review on Q10
+  // Handle completing question and transitioning directly to Home upon completion
   const handleNextQuestion = async () => {
     const isFinished = Boolean(
       session.serverPendingTransition?.isSessionComplete ||
@@ -173,16 +180,27 @@ export function App() {
     );
     await nextQuestion();
     if (isFinished) {
-      navigateTo('REVIEW');
+      await markReviewViewed();
+      navigateTo('HOME');
     }
   };
 
-  // Automatically transition to Review when session reaches QUESTIONS_COMPLETED
+  // Automatically transition to Home when session reaches completed status
   useEffect(() => {
-    if (currentView === 'SESSION' && session.dailyStatus === 'QUESTIONS_COMPLETED') {
-      navigateTo('REVIEW');
+    const isSessionDone =
+      session.dailyStatus === 'QUESTIONS_COMPLETED' ||
+      session.dailyStatus === 'REVIEW_VIEWED' ||
+      session.dailyStatus === 'COMPLETED' ||
+      session.dailyStatus === 'REVIEW_COMPLETED' ||
+      session.questionsCompleted;
+
+    if (currentView === 'SESSION' && isSessionDone) {
+      markReviewViewed();
+      navigateTo('HOME');
+    } else if (currentView === 'REVIEW') {
+      navigateTo('HOME');
     }
-  }, [currentView, session.dailyStatus, navigateTo]);
+  }, [currentView, session.dailyStatus, session.questionsCompleted, markReviewViewed, navigateTo]);
 
   // Handle pressing Done on Session Review (locks today's session and returns to Home)
   const handleDoneReview = async () => {
@@ -200,15 +218,7 @@ export function App() {
     navigateBack();
   };
 
-  // Handle navigating to Power-Ups view
-  const handleNavigatePowerUps = () => {
-    navigateTo('POWER_UPS');
-  };
 
-  // Handle returning from Power-Ups view back to Home
-  const handleBackFromPowerUps = () => {
-    navigateBack();
-  };
 
   // Handle returning from Unsolved Clinical Vault back to Home
   const handleBackFromUnsolved = () => {
@@ -258,6 +268,16 @@ export function App() {
   // ============================================================
   // Authenticated Protected Views
   // ============================================================
+  if (currentView === 'ADMIN') {
+    return (
+      <AdminDashboard
+        onNavigateLearnerView={() => navigateTo('HOME')}
+        onSignOut={handleSignOut}
+        adminDisplayName={defaultAuthService.getSession()?.emailOrPhone || 'Administrator'}
+      />
+    );
+  }
+
   return (
     <MobileContainer>
       {currentView === 'HOME' && (
@@ -268,7 +288,6 @@ export function App() {
           totalQuestionsCount={session.questions.length || 10}
           onStartSession={handleStartSession}
           onNavigateProfile={handleNavigateProfile}
-          onNavigatePowerUps={handleNavigatePowerUps}
           onNavigateLeaderboard={handleNavigateLeaderboard}
           isLoading={isLoading}
           onRetry={refreshUserStats}
@@ -282,8 +301,6 @@ export function App() {
           currentQuestion={currentQuestion}
           onSetAnswer={setAnswer}
           onSubmitAnswer={submitCurrentAnswer}
-          onApplyFiftyFifty={applyFiftyFifty}
-          onApplyLearn={applyLearn}
           onNextQuestion={handleNextQuestion}
           onExitSession={handleExitSession}
           onRetry={initDailySession}
@@ -312,15 +329,11 @@ export function App() {
           userStats={userStats}
           onBack={handleBackFromProfile}
           onSignOut={handleSignOut}
+          onNavigateAdmin={() => navigateTo('ADMIN')}
         />
       )}
 
-      {currentView === 'POWER_UPS' && (
-        <PowerUpsScreen
-          userStats={userStats}
-          onBack={handleBackFromPowerUps}
-        />
-      )}
+
 
       {currentView === 'LEADERBOARD' && (
         <LeaderboardScreen

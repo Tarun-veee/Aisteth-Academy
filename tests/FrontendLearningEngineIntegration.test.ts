@@ -294,7 +294,7 @@ describe('Stage 4 — Frontend Learning Engine Integration Suite', () => {
   // =========================================================================
   // 2. PRIMARY FAILURE -> FOLLOW-UP -> SUCCESSFUL REATTEMPT
   // =========================================================================
-  it('Scenario 2: Primary failure -> Follow-Up success -> Primary reattempt success awards 10 XP only upon reattempt', async () => {
+  it('Scenario 2: Primary failure -> Follow-Up success concludes item and advances to next Primary slot (no automatic reattempt loop)', async () => {
     vi.mocked(sessionApi.getTodaySession).mockResolvedValue({
       session: {
         sessionId: mockSessionId,
@@ -330,7 +330,8 @@ describe('Stage 4 — Frontend Learning Engine Integration Suite', () => {
       result: 'INCORRECT',
       xpAwarded: 0,
       branchState: 'FOLLOW_UP',
-      currentQuestionIndex: 0,
+      currentQuestionIndex: 1,
+      activeFollowUpQuestionId: 'MG-AIL-01-PR',
       totalXpEarned: 0,
       correctCount: 0,
       isSessionComplete: false,
@@ -348,15 +349,16 @@ describe('Stage 4 — Frontend Learning Engine Integration Suite', () => {
     await harness.get().nextQuestion();
 
     expect(harness.get().session.status).toBe('IN_PROGRESS');
+    expect(harness.get().session.currentIndex).toBe(1);
     expect(harness.get().session.branchState).toBe('FOLLOW_UP');
     expect(harness.get().currentQuestion?.question_id).toBe('MG-AIL-01-PR');
 
-    // Step 2B: Trainee answers Follow-Up question correctly (Awards 0 XP)
+    // Step 2B: Trainee answers Follow-Up question correctly (Awards 0 XP, concludes branch, advances to slot 2)
     harness.get().setAnswer({ type: 'MCQ', selected_option: 'option_b' });
 
     vi.mocked(sessionApi.recordAttempt).mockResolvedValueOnce({
       success: true,
-      attemptId: `att_${mockSessionId}_q0_FOLLOW_UP`,
+      attemptId: `att_${mockSessionId}_q1_FOLLOW_UP`,
       evaluation: {
         is_correct: true,
         awarded_xp: 0,
@@ -365,8 +367,8 @@ describe('Stage 4 — Frontend Learning Engine Integration Suite', () => {
       },
       result: 'CORRECT',
       xpAwarded: 0, // Follow-ups award 0 XP
-      branchState: 'REATTEMPT_MAIN',
-      currentQuestionIndex: 0,
+      branchState: 'MAIN',
+      currentQuestionIndex: 2,
       totalXpEarned: 0,
       correctCount: 0,
       isSessionComplete: false,
@@ -379,45 +381,10 @@ describe('Stage 4 — Frontend Learning Engine Integration Suite', () => {
     expect(harness.get().session.status).toBe('ANSWER_SUBMITTED');
     expect(harness.get().session.totalXpEarned).toBe(0);
 
-    // Trainee clicks "Re-attempt Main Question"
+    // Trainee advances to next question (Index 2: MG-AIL-02-TH)
     await harness.get().nextQuestion();
 
-    expect(harness.get().session.status).toBe('IN_PROGRESS');
-    expect(harness.get().session.branchState).toBe('REATTEMPT_MAIN');
-    expect(harness.get().currentQuestion?.question_id).toBe('MG-AIL-01-TH');
-
-    // Step 2C: Trainee re-attempts Primary Q0 correctly (Awards 10 XP)
-    harness.get().setAnswer({ type: 'MCQ', selected_option: 'option_a' });
-
-    vi.mocked(sessionApi.recordAttempt).mockResolvedValueOnce({
-      success: true,
-      attemptId: `att_${mockSessionId}_q0_REATTEMPT_MAIN`,
-      evaluation: {
-        is_correct: true,
-        awarded_xp: 10,
-        feedback_message: 'Primary Reattempt Correct!',
-        explanation: 'Primary explanation',
-      },
-      result: 'CORRECT',
-      xpAwarded: 10,
-      branchState: 'MAIN',
-      currentQuestionIndex: 1,
-      totalXpEarned: 10,
-      correctCount: 1,
-      isSessionComplete: false,
-      questionsCompleted: false,
-      status: 'IN_PROGRESS',
-    });
-
-    await harness.get().submitCurrentAnswer();
-
-    expect(harness.get().session.totalXpEarned).toBe(10);
-    expect(harness.get().session.correctCount).toBe(1);
-
-    // Trainee advances to next question (Index 1)
-    await harness.get().nextQuestion();
-
-    expect(harness.get().session.currentIndex).toBe(1);
+    expect(harness.get().session.currentIndex).toBe(2);
     expect(harness.get().session.branchState).toBe('MAIN');
     expect(harness.get().currentQuestion?.question_id).toBe('MG-AIL-02-TH');
   });
@@ -455,23 +422,24 @@ describe('Stage 4 — Frontend Learning Engine Integration Suite', () => {
       result: 'INCORRECT',
       xpAwarded: 0,
       branchState: 'FOLLOW_UP',
-      currentQuestionIndex: 0,
+      currentQuestionIndex: 1,
+      activeFollowUpQuestionId: 'MG-AIL-01-PR',
       totalXpEarned: 0,
       correctCount: 0,
     });
     await harness.get().submitCurrentAnswer();
     await harness.get().nextQuestion();
 
-    // Follow-up fails -> Backend concludes branch, advances to index 1, awards 0 XP
+    // Follow-up fails -> Backend concludes branch, advances to index 2, awards 0 XP
     harness.get().setAnswer({ type: 'MCQ', selected_option: 'option_a' });
     vi.mocked(sessionApi.recordAttempt).mockResolvedValueOnce({
       success: true,
-      attemptId: `att_${mockSessionId}_q0_FOLLOW_UP`,
+      attemptId: `att_${mockSessionId}_q1_FOLLOW_UP`,
       evaluation: { is_correct: false, awarded_xp: 0, feedback_message: 'Follow-Up Failed', explanation: '' },
       result: 'INCORRECT',
       xpAwarded: 0,
       branchState: 'MAIN',
-      currentQuestionIndex: 1,
+      currentQuestionIndex: 2,
       totalXpEarned: 0,
       correctCount: 0,
       isSessionComplete: false,
@@ -479,7 +447,7 @@ describe('Stage 4 — Frontend Learning Engine Integration Suite', () => {
     await harness.get().submitCurrentAnswer();
     await harness.get().nextQuestion();
 
-    expect(harness.get().session.currentIndex).toBe(1);
+    expect(harness.get().session.currentIndex).toBe(2);
     expect(harness.get().session.branchState).toBe('MAIN');
     expect(harness.get().session.totalXpEarned).toBe(0);
     expect(harness.get().currentQuestion?.question_id).toBe('MG-AIL-02-TH');

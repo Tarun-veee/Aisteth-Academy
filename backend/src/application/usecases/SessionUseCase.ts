@@ -37,25 +37,37 @@ export class SessionUseCase {
 
     // 1. If today's session exists, recover and return it (survives refreshes, retries, etc.)
     if (session) {
-      if (Array.isArray(session.questionIds) && session.questionIds.some((id) => id.endsWith('-PR'))) {
-        session.questionIds = session.questionIds.map((id) => id.replace(/-PR$/, '-TH'));
-        await this.sessionRepo.updateSessionProgress(uid, sessionId, { questionIds: session.questionIds });
+      if (session.branchState === 'FOLLOW_UP' && session.activeFollowUpQuestionId) {
+        if (Array.isArray(session.questionIds) && session.questionIds[session.currentQuestionIndex] !== session.activeFollowUpQuestionId) {
+          session.questionIds[session.currentQuestionIndex] = session.activeFollowUpQuestionId;
+          await this.sessionRepo.updateSessionProgress(uid, sessionId, { questionIds: session.questionIds });
+        }
+      } else if (Array.isArray(session.questionIds) && session.questionIds.some((id) => id.endsWith('-PR'))) {
+        const activeFu = session.activeFollowUpQuestionId;
+        const needsHealing = session.questionIds.some((id) => id.endsWith('-PR') && id !== activeFu);
+        if (needsHealing) {
+          session.questionIds = session.questionIds.map((id) => {
+            if (id === activeFu) return id;
+            return id.replace(/-PR$/, '-TH');
+          });
+          await this.sessionRepo.updateSessionProgress(uid, sessionId, { questionIds: session.questionIds });
+        }
       }
       if (typeof this.sessionRepo.reconcileSessionProgressAtomic === 'function') {
         session = await this.sessionRepo.reconcileSessionProgressAtomic(uid, sessionId);
       }
       questionIds = session.questionIds;
     } else {
-      // 2. Check if user has an active, incomplete session from an earlier day that has not reached terminal state
-      const activeSession = await this.sessionRepo.getActiveDailySession(uid);
-      if (activeSession && activeSession.status === 'IN_PROGRESS' && !activeSession.questionsCompleted) {
+      // 2. Check if user has an active, incomplete session for the CURRENT cycle that has not reached terminal state
+      const activeSession = await this.sessionRepo.getActiveDailySession(uid, dateStr);
+      if (activeSession && activeSession.status === 'IN_PROGRESS' && !activeSession.questionsCompleted && activeSession.localDate === dateStr) {
         session = activeSession;
         if (typeof this.sessionRepo.reconcileSessionProgressAtomic === 'function') {
           session = await this.sessionRepo.reconcileSessionProgressAtomic(uid, activeSession.sessionId);
         }
         questionIds = session.questionIds;
       } else {
-        // 3. Create a brand new daily session using the persistent 31-topic round-robin queue
+        // 3. Create a brand new daily session for the new cycle using the persistent 31-topic round-robin queue
         const user = await this.sessionRepo.getUser(uid);
         const userQueue: string[] = (Array.isArray(user?.topicQueue) && user.topicQueue.length > 0)
           ? user.topicQueue
@@ -88,23 +100,37 @@ export class SessionUseCase {
           totalXpEarned: 0,
           correctCount: 0,
           accuracy: 0,
-          powerUpsUsed: {
-            FIFTY_FIFTY: [],
-            LEARN: [],
-          },
         };
 
-        await this.sessionRepo.createDailySession(newSession);
+        // Concurrency-safe atomic creation (prevents duplicate allocation on simultaneous requests)
+        const atomicCreate = typeof (this.sessionRepo as any).createDailySessionIfNotExists === 'function'
+          ? await (this.sessionRepo as any).createDailySessionIfNotExists(newSession)
+          : null;
 
-        // Update user's activeSessionId, selected topics, and initialize topicQueue if not yet set
-        await this.sessionRepo.updateUser(uid, {
-          activeSessionId: sessionId,
-          activeSessionTopics: selectionResult.selectedTopics,
-          ...((!user?.topicQueue || user.topicQueue.length === 0) ? { topicQueue: userQueue } : {}),
-        });
-
-        session = newSession;
+        if (atomicCreate && !atomicCreate.created) {
+          // Another concurrent request already created the session for this daily cycle
+          session = atomicCreate.session as DailySessionDoc;
+          questionIds = session.questionIds;
+        } else {
+          if (!atomicCreate) {
+            await this.sessionRepo.createDailySession(newSession);
+            await this.sessionRepo.updateUser(uid, {
+              activeSessionId: sessionId,
+              activeSessionTopics: selectionResult.selectedTopics,
+              ...((!user?.topicQueue || user.topicQueue.length === 0) ? { topicQueue: userQueue } : {}),
+            });
+          } else {
+            if (!user?.topicQueue || user.topicQueue.length === 0) {
+              await this.sessionRepo.updateUser(uid, { topicQueue: userQueue });
+            }
+          }
+          session = newSession;
+        }
       }
+    }
+
+    if (!session) {
+      throw new Error(`Failed to initialize or recover daily session for user '${uid}' on cycle '${dateStr}'.`);
     }
 
     const allQuestions = await this.questionRepo.getAllQuestions();
@@ -131,7 +157,10 @@ export class SessionUseCase {
     let targetAnswerPayload = payload.userAnswerPayload;
     let targetSelectedOption = payload.selectedOption ?? (payload.userAnswerPayload as any)?.selectedOption;
 
-    if (targetQuestionId.endsWith('-PR')) {
+    const sessionDoc = await this.sessionRepo.getDailySession(uid, payload.sessionId);
+    const activeBranch = payload.branchState || sessionDoc?.branchState || 'MAIN';
+
+    if (activeBranch === 'MAIN' && targetQuestionId.endsWith('-PR')) {
       const parentId = targetQuestionId.replace(/-PR$/, '-TH');
       const parentQuestion = await this.questionRepo.getQuestionById(parentId);
       const prQuestion = await this.questionRepo.getQuestionById(targetQuestionId);
@@ -207,7 +236,6 @@ export class SessionUseCase {
       questionIndex: payload.questionIndex,
       userAnswerPayload: targetAnswerPayload,
       evaluation,
-      powerUpsActive: payload.powerUpsActive,
       idempotencyKey: payload.idempotencyKey,
       selectedOption: targetSelectedOption as any,
     });
@@ -253,7 +281,6 @@ export class SessionUseCase {
         completedQuestionsCount: result.updatedLearningState.completedQuestionsCount,
         completedSessionsCount: result.updatedLearningState.completedSessionsCount,
         totalCorrectAnswersCount: result.updatedLearningState.totalCorrectAnswersCount,
-        streakShieldConsumed: result.updatedLearningState.streakShieldConsumed,
       } : undefined,
     };
   }

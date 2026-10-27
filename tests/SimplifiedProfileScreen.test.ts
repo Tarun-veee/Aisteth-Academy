@@ -59,7 +59,6 @@ describe('Simplified & Compact ProfileScreen for ASHA Health Workers', () => {
 
     expect(html).toContain('Lakshmi');
     expect(html).toContain('ASHA Health Worker');
-    expect(html).toContain('Bengaluru, Karnataka');
     expect(html).toContain('Kengeri Sub-Centre');
     // Ensure raw database IDs are NOT exposed
     expect(html).not.toContain('user-lakshmi-01');

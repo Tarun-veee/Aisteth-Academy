@@ -12,7 +12,6 @@ export interface RecordAttemptApiPayload {
   questionId: string;
   questionIndex: number;
   userAnswerPayload: UserAnswerPayload;
-  powerUpsActive?: string[];
   idempotencyKey?: string;
   selectedOption?: any;
   branchState?: BranchState;
@@ -75,4 +74,5 @@ export const sessionApi = {
     });
   },
 };
+
 

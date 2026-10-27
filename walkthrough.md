@@ -82,16 +82,22 @@ http://localhost:3000
 ```
 
 ### What You Can Do in the App:
-1. **Sign In / Registration**:
-   - Register a new frontline trainee account (ASHA Worker / Anganwadi Worker) or log in with your credentials.
-   - Sessions rehydrate automatically across refreshes via HttpOnly cookies.
-2. **Daily 10-Question Training Mission**:
+1. **Frontline Worker Sign-In (Admin-Led Onboarding)**:
+   - Frontline RBSK workers log in directly using their provisioned phone number (e.g. `9876543210`) or username along with their temporary password provided by their program supervisor.
+   - Public self-registration is eliminated for frontline workers to minimize technical friction.
+   - Sessions rehydrate automatically across refreshes via HttpOnly cookies and Bearer tokens.
+2. **Admin Dashboard (Platform Admin & Supervisors)**:
+   - Elevated administrators access the portal at `#admin` (or click "Admin Dashboard" in the navigation drawer).
+   - **Individual Onboarding**: Register single workers with role, phone, district, and health sub-centre with instant E.164 normalization and duplicate detection.
+   - **Bulk CSV Import**: Drag & drop CSV spreadsheets with pre-import validation, duplicate collision checking, and error isolation.
+   - **Account Management**: Edit worker details, deactivate accounts (instant session revocation + Auth lock), reactivate accounts, and regenerate temporary passwords with copyable access instructions.
+3. **Daily 10-Question Training Mission**:
    - Complete today's server-authoritative clinical session.
    - Try Primary questions and observe remedial Follow-Up branching on incorrect answers.
-3. **Clinical Vault (Unsolved Question Review)**:
+4. **Clinical Vault (Unsolved Question Review)**:
    - Access via the **Clinical Vault** card on the home dashboard or navigate to `#unsolved`.
    - Review paired primary and remedial follow-up questions, change review statuses, and save reinforcement notes.
-4. **Trainee Profile & Power-Ups**:
+5. **Trainee Profile & Power-Ups**:
    - Access **My Profile** (`#profile`) to edit demographic details with live server synchronization.
    - Access **Power-Ups** (`#power-ups`) to inspect unlocked clinical tools (50/50, Learn, Streak Shield).
 
@@ -101,13 +107,13 @@ http://localhost:3000
 
 You can run automated test suites directly from the terminal:
 
-### Run All Workspace Tests (423 Tests)
+### Run All Workspace Tests (632 Tests)
 ```bash
 npm test
 ```
-*Executes all 237 frontend integration tests and 186 backend domain tests.*
+*Executes all 41 test files including 632 unit and integration tests covering admin onboarding, account deactivation, credential regeneration, authentication, and clinical training.*
 
-### Run Backend Tests Only (186 Tests)
+### Run Backend Tests Only
 ```bash
 npm run backend:test
 ```

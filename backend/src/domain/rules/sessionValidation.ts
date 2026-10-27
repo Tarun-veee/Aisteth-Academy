@@ -268,7 +268,10 @@ export async function validateAuthoritativeSessionState(
   }
 
   // 3. Primary Question verification against Authoritative Dataset
-  const activePrimaryId = session.questionIds[session.currentQuestionIndex];
+  const activePrimaryId = (branchState === 'FOLLOW_UP' || branchState === 'REATTEMPT_MAIN')
+    ? (session.activeMainQuestionId || session.questionIds[Math.max(0, session.currentQuestionIndex - 1)])
+    : session.questionIds[session.currentQuestionIndex];
+
   if (!AUTHORITATIVE_MAIN_QUESTION_IDS.includes(activePrimaryId) && !activePrimaryId.startsWith('q')) {
     throw new ConflictError(
       `SESSION_STATE_CORRUPTED: question '${activePrimaryId}' at index ${session.currentQuestionIndex} does not exist in the authoritative Primary curriculum.`
@@ -615,9 +618,16 @@ export async function reconcileSessionProgressFromLedger(
     }
 
     if (fuAtt && !mainAtt) {
-      throw new ConflictError(
-        `SESSION_LINEAGE_CORRUPTED: Follow-up attempt found at index ${idx} without a preceding Primary attempt.`
+      // Allow sequential follow-up where preceding index was an incorrect Primary
+      const prevList = attemptsByIndex.get(idx - 1) || [];
+      const prevMainFailed = prevList.some(
+        (a) => a.attemptId.endsWith('_MAIN') && a.result === 'INCORRECT'
       );
+      if (!prevMainFailed) {
+        throw new ConflictError(
+          `SESSION_LINEAGE_CORRUPTED: Follow-up attempt found at index ${idx} without a preceding Primary attempt.`
+        );
+      }
     }
     if (reattemptAtt && !mainAtt) {
       throw new ConflictError(
@@ -647,37 +657,35 @@ export async function reconcileSessionProgressFromLedger(
 
     if (!cycle || !cycle.main) {
       if (cycle?.followUp) {
-        throw new ConflictError(
-          `SESSION_LINEAGE_CORRUPTED: Follow-up attempt found at index ${i} without a preceding Primary attempt.`
-        );
-      }
-      if (cycle?.reattempt) {
+        // Sequential follow-up already processed
+      } else if (cycle?.reattempt) {
         throw new ConflictError(
           `SESSION_LINEAGE_CORRUPTED: Re-attempt found at index ${i} without a preceding Primary attempt.`
         );
-      }
+      } else {
+        // No attempt for question i.
+        // Check for non-contiguous lineage: are there attempts for any index > i?
+        if (maxIndexWithAttempts > i) {
+          throw new ConflictError(`SESSION_LINEAGE_CORRUPTED: Non-contiguous attempt history. Question index ${i} is missing.`);
+        }
 
-      // No attempt for question i.
-      // Check for non-contiguous lineage: are there attempts for any index > i?
-      if (maxIndexWithAttempts > i) {
-        throw new ConflictError(`SESSION_LINEAGE_CORRUPTED: Non-contiguous attempt history. Question index ${i} is missing.`);
+        // Safe state: learner is at index i, MAIN
+        resolvedIndex = i;
+        resolvedBranch = 'MAIN';
+        resolvedActiveMainId = expectedPrimary;
+        resolvedActiveFollowUpId = null;
+        isSessionTerminal = false;
+        break;
       }
-
-      // Safe state: learner is at index i, MAIN
-      resolvedIndex = i;
-      resolvedBranch = 'MAIN';
-      resolvedActiveMainId = expectedPrimary;
-      resolvedActiveFollowUpId = null;
-      isSessionTerminal = false;
-      break;
+      continue;
     }
 
     // Question i has a MAIN attempt
     const mainAtt = cycle.main;
     // Primary question ID validation (allowing -PR to -TH normalization)
     const normalizedAttQId = mainAtt.questionId.replace(/-PR$/, '-TH');
-    const normalizedExpected = expectedPrimary.replace(/-PR$/, '-TH');
-    if (normalizedAttQId !== normalizedExpected) {
+    const normalizedExpected = expectedPrimary ? expectedPrimary.replace(/-PR$/, '-TH') : '';
+    if (normalizedExpected && normalizedAttQId !== normalizedExpected) {
       throw new ConflictError(
         `SESSION_STATE_CORRUPTED: Attempt question '${mainAtt.questionId}' at index ${i} does not match session question '${expectedPrimary}'.`
       );
@@ -706,8 +714,12 @@ export async function reconcileSessionProgressFromLedger(
       // Primary was incorrect
       resolvedTotalXp += (mainAtt.xpAwarded || 0);
 
-      // Check if Follow-Up was attempted
-      if (!cycle.followUp) {
+      // Check if Follow-Up was attempted at index i (legacy) or at index i + 1 (sequential)
+      const nextCycleList = attemptsByIndex.get(i + 1) || [];
+      const sequentialFu = nextCycleList.find((a) => a.attemptId.endsWith('_FOLLOW_UP'));
+      const effectiveFu = cycle.followUp || sequentialFu;
+
+      if (!effectiveFu) {
         // Pending Follow-Up!
         // If there are attempts for index > i, this represents out-of-order execution
         if (maxIndexWithAttempts > i) {
@@ -725,17 +737,31 @@ export async function reconcileSessionProgressFromLedger(
           fuId = `${expectedPrimary.replace('-TH', '')}-PR`;
         }
 
-        resolvedIndex = i;
-        resolvedBranch = 'FOLLOW_UP';
-        resolvedActiveMainId = expectedPrimary;
-        resolvedActiveFollowUpId = fuId;
-        isSessionTerminal = false;
+        // Sequential Follow-Up occupies position i + 1 if not at final slot
+        if (i < totalQuestions - 1) {
+          resolvedIndex = i + 1;
+          resolvedBranch = 'FOLLOW_UP';
+          resolvedActiveMainId = expectedPrimary;
+          resolvedActiveFollowUpId = fuId;
+          isSessionTerminal = false;
+        } else {
+          resolvedIndex = totalQuestions;
+          resolvedBranch = 'MAIN';
+          resolvedActiveMainId = null;
+          resolvedActiveFollowUpId = null;
+          isSessionTerminal = true;
+        }
         break;
       }
 
       // Follow-up was attempted
-      const fuAtt = cycle.followUp;
+      const fuAtt = effectiveFu;
       resolvedTotalXp += (fuAtt.xpAwarded || 0);
+
+      if (sequentialFu) {
+        // Advance i to account for slot consumed by sequential follow-up
+        i++;
+      }
 
       // Historical REATTEMPT_MAIN handling
       if (cycle.reattempt) {

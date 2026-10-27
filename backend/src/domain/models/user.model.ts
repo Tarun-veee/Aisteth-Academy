@@ -19,8 +19,6 @@ export interface UserLearningState {
   completedSessionsCount: number;
   totalCorrectAnswersCount: number;
   currentLevel?: number;
-  streakShieldActive?: boolean;
-  streakShieldConsumed?: boolean;
 }
 
 export interface UserProfile {
@@ -29,10 +27,9 @@ export interface UserProfile {
   email?: string;
   phone?: string;
   role: Designation;
+  systemRole?: UserRole;
   healthSubCentre?: string;
   centerName?: string;
-  district?: string;
-  state?: string;
   createdAt?: string;
 }
 
@@ -46,10 +43,15 @@ export interface UserProfileDoc {
   organizationId: string;
   designation: string;
   healthSubCentre: string;
-  district: string;
-  state: string;
+  district?: string; // Optional legacy field
+  state?: string;    // Optional legacy field
   trainingTimeZone: string;
   learningState: UserLearningState;
+  phoneNumber?: string;
+  onboardingStatus?: string;
+  accountStatus?: 'ACTIVE' | 'DEACTIVATED' | 'PENDING';
+  whatsappOnboardedAt?: any;
+  onboardingError?: string | null;
   createdAt: any;
   updatedAt: any;
   lastActiveAt?: any;

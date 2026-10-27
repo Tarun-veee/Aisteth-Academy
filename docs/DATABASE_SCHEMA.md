@@ -195,9 +195,9 @@ Firebase Auth `uid`.
 | `role` | `string` | Yes | `TRAINEE`, `SUPERVISOR`, `CONTENT_ADMIN`, `PLATFORM_ADMIN` | Yes* | Server | User role (Authoritative). |
 | `organizationId` | `string` | Yes | Slug format | Yes* | Server | Healthcare agency tenant ID. |
 | `designation` | `string` | Yes | `ASHA`, `ANM`, `CHO`, `RBSK_MO`, `SUPERVISOR`, `OTHER` | No | User / Admin | Clinical role title. |
-| `healthSubCentre` | `string` | No | Free text | No | User | Local primary health centre / clinic. |
-| `district` | `string` | Yes | Valid Indian district name | No | User | Assigned district. |
-| `state` | `string` | Yes | Valid Indian state name | No | User | Assigned state. |
+| `healthSubCentre` | `string` | No | Free text | No | User | Local primary health centre / clinic (primary location). |
+| `district` | `string` | No | Valid Indian district name (Legacy) | No | User | Deprecated / Optional legacy field. |
+| `state` | `string` | No | Valid Indian state name (Legacy) | No | User | Deprecated / Optional legacy field. |
 | `trainingTimeZone`| `string` | Yes | Default: `Asia/Kolkata` | No | User | Profile display metadata only. NOT used for V1 session date/rotation resolution. |
 | `learningState.totalXp` | `number` | Yes | `>= 0` (Default: `0`) | No | Server | Cumulative experience points. |
 | `learningState.currentLevel` | `number` | Yes | `1` to `5` (Default: `1`) | No | Server | Calculated level tier. |
@@ -216,7 +216,7 @@ Firebase Auth `uid`.
 #### Security & Access
 - **Read**: Owner (`request.auth.uid == uid`), organization Supervisor, or `PLATFORM_ADMIN`.
 - **Create**: **BLOCKED FOR CLIENTS** (Provisioned strictly via `registerWithUsername` Cloud Function).
-- **Update**: Trainee can update personal profile fields (`displayName`, `designation`, `healthSubCentre`, `district`, `state`, `optionalEmail`, `trainingTimeZone`). Server-controlled fields (`uid`, `username`, `role`, `organizationId`, `learningState`, `lastActiveAt`, `createdAt`, `updatedAt`) are protected by Security Rules.
+- **Update**: Trainee can update personal profile fields (`displayName`, `designation`, `healthSubCentre`, `optionalEmail`, `trainingTimeZone`). Server-controlled fields (`uid`, `username`, `role`, `organizationId`, `learningState`, `lastActiveAt`, `createdAt`, `updatedAt`) are protected by Security Rules.
 - **Delete**: `PLATFORM_ADMIN` only.
 
 ---

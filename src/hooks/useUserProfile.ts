@@ -137,8 +137,6 @@ export function useUserProfile(options: UseUserProfileOptions = {}): UseUserProf
         ...(updates.role || updates.designation
           ? { role: (updates.designation || updates.role || '').trim() }
           : {}),
-        ...(updates.district !== undefined ? { district: updates.district.trim() } : {}),
-        ...(updates.state !== undefined ? { state: updates.state.trim() } : {}),
         ...(updates.healthSubCentre !== undefined || updates.centerName !== undefined
           ? {
               healthSubCentre: (updates.healthSubCentre || updates.centerName || '').trim(),

@@ -36,6 +36,8 @@ import { ProgressionService } from '../../domain/rules/ProgressionService.js';
 import {
   CANONICAL_31_TOPIC_SEQUENCE,
   normalizeToCanonicalTopic,
+  getResolvedCalendarDate,
+  getElapsedDailyCycles,
 } from '../../domain/rules/sessionSelection.js';
 
 export class FirestoreSessionRepository implements ISessionRepository {
@@ -54,39 +56,34 @@ export class FirestoreSessionRepository implements ISessionRepository {
     });
   }
 
-  async getActiveDailySession(uid: string): Promise<DailySessionDoc | null> {
+  async getActiveDailySession(uid: string, targetCycleDate: string = getResolvedCalendarDate()): Promise<DailySessionDoc | null> {
     const userDoc = await this.getUser(uid);
-    const lastActiveDate = userDoc?.learningState?.lastActiveDate || null;
 
-    // 1. Check if user profile has an activeSessionId pointer
+    // 1. Check if user profile has an activeSessionId pointer for the target cycle
     if (userDoc?.activeSessionId) {
       const activeSession = await this.getDailySession(uid, userDoc.activeSessionId);
       if (
         activeSession &&
         activeSession.status === 'IN_PROGRESS' &&
-        !activeSession.questionsCompleted
+        !activeSession.questionsCompleted &&
+        activeSession.localDate === targetCycleDate
       ) {
-        if (!lastActiveDate || !activeSession.localDate || activeSession.localDate >= lastActiveDate) {
-          return activeSession;
-        }
+        return activeSession;
       }
     }
 
-    // 2. Query users/{uid}/dailySessions for active IN_PROGRESS session
+    // 2. Query users/{uid}/dailySessions for active IN_PROGRESS session matching targetCycleDate
     try {
       const snap = await adminDb
         .collection(`users/${uid}/dailySessions`)
         .where('status', '==', 'IN_PROGRESS')
+        .where('localDate', '==', targetCycleDate)
         .get();
 
       if (!snap.empty) {
         const validSessions = snap.docs
           .map((d) => d.data() as DailySessionDoc)
-          .filter(
-            (s) =>
-              !s.questionsCompleted &&
-              (!lastActiveDate || !s.localDate || s.localDate >= lastActiveDate)
-          );
+          .filter((s) => !s.questionsCompleted && s.localDate === targetCycleDate);
 
         if (validSessions.length > 0) {
           validSessions.sort((a, b) => (b.localDate || '').localeCompare(a.localDate || ''));
@@ -118,6 +115,48 @@ export class FirestoreSessionRepository implements ISessionRepository {
     });
   }
 
+  async createDailySessionIfNotExists(session: DailySessionDoc): Promise<{ session: DailySessionDoc; created: boolean }> {
+    const sessionRef = adminDb.doc(`users/${session.uid}/dailySessions/${session.sessionId}`);
+    const userRef = adminDb.doc(`users/${session.uid}`);
+
+    if (typeof adminDb.runTransaction === 'function') {
+      return adminDb.runTransaction(async (transaction) => {
+        const snap = await transaction.get(sessionRef);
+        if (snap && snap.exists) {
+          return { session: snap.data() as DailySessionDoc, created: false };
+        }
+
+        const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+        transaction.set(sessionRef, {
+          ...session,
+          startedAt: serverTimestamp,
+          createdAt: serverTimestamp,
+          updatedAt: serverTimestamp,
+        });
+
+        transaction.update(userRef, {
+          activeSessionId: session.sessionId,
+          activeSessionTopics: session.selectedTopics || [],
+          updatedAt: serverTimestamp,
+        });
+
+        return { session, created: true };
+      });
+    }
+
+    // Fallback for non-transactional mock environments
+    const snap = await sessionRef.get();
+    if (snap && snap.exists) {
+      return { session: snap.data() as DailySessionDoc, created: false };
+    }
+    await this.createDailySession(session);
+    await this.updateUser(session.uid, {
+      activeSessionId: session.sessionId,
+      activeSessionTopics: session.selectedTopics || [],
+    });
+    return { session, created: true };
+  }
+
   async appendAttempt(attempt: AttemptDoc): Promise<void> {
     const attemptRef = adminDb.doc(`users/${attempt.uid}/attempts/${attempt.attemptId}`);
     await attemptRef.set({
@@ -144,16 +183,6 @@ export class FirestoreSessionRepository implements ISessionRepository {
       delete dataToUpdate.isCorrect;
     }
 
-    if (updates.powerUpsActive && Array.isArray(updates.powerUpsActive)) {
-      if (updates.powerUpsActive.includes('FIFTY_FIFTY')) {
-        dataToUpdate['powerUpsUsed.FIFTY_FIFTY'] = admin.firestore.FieldValue.arrayUnion(updates.questionId);
-      }
-      if (updates.powerUpsActive.includes('LEARN')) {
-        dataToUpdate['powerUpsUsed.LEARN'] = admin.firestore.FieldValue.arrayUnion(updates.questionId);
-      }
-      delete dataToUpdate.powerUpsActive;
-      delete dataToUpdate.questionId;
-    }
 
     await sessionRef.update(dataToUpdate);
   }
@@ -166,7 +195,6 @@ export class FirestoreSessionRepository implements ISessionRepository {
       questionIndex,
       userAnswerPayload,
       evaluation,
-      powerUpsActive,
       idempotencyKey,
       selectedOption,
     } = params;
@@ -239,6 +267,7 @@ export class FirestoreSessionRepository implements ISessionRepository {
             branchState: receipt.branchState,
             status: receipt.sessionStatus,
             questionsCompleted: receipt.questionsCompleted,
+            activeFollowUpQuestionId: (receipt as any).activeFollowUpQuestionId || null,
           };
         }
       }
@@ -288,14 +317,22 @@ export class FirestoreSessionRepository implements ISessionRepository {
 
       // Auto-heal legacy odd-day session where questionIds erroneously contained -PR instead of -TH
       if (Array.isArray(sessionData.questionIds)) {
-        sessionData.questionIds = sessionData.questionIds.map((id: string) => id.replace(/-PR$/, '-TH'));
+        sessionData.questionIds = sessionData.questionIds.map((id: string) => {
+          if (id === sessionData.activeFollowUpQuestionId) return id;
+          return id.replace(/-PR$/, '-TH');
+        });
+        if (branchState === 'FOLLOW_UP' && sessionData.activeFollowUpQuestionId) {
+          sessionData.questionIds[currentIndex] = sessionData.activeFollowUpQuestionId;
+        }
       }
       let effectiveQId = questionId;
       if (branchState === 'MAIN' && effectiveQId && effectiveQId.endsWith('-PR')) {
         effectiveQId = effectiveQId.replace(/-PR$/, '-TH');
       }
 
-      const activePrimaryId = (sessionData.questionIds && sessionData.questionIds[currentIndex]) || effectiveQId;
+      const activePrimaryId = (branchState === 'FOLLOW_UP' || branchState === 'REATTEMPT_MAIN')
+        ? (sessionData.activeMainQuestionId || ((sessionData.questionIds && sessionData.questionIds[currentIndex - 1]) || effectiveQId))
+        : ((sessionData.questionIds && sessionData.questionIds[currentIndex]) || effectiveQId);
       const unsolvedRef = adminDb.doc(`users/${uid}/unsolvedQuestions/${activePrimaryId}`);
 
       // 1.3 Read userRef and unsolvedRef upfront (Strict Phase 1 read-before-write constraint)
@@ -313,10 +350,20 @@ export class FirestoreSessionRepository implements ISessionRepository {
 
       // Question sequencing validation
       if (Array.isArray(sessionData.questionIds) && sessionData.questionIds.length > 0) {
-        const expectedPrimary = sessionData.questionIds[currentIndex];
-        if (branchState === 'MAIN' && expectedPrimary && effectiveQId !== expectedPrimary) {
+        const expectedQuestion = sessionData.questionIds[currentIndex];
+        if (branchState === 'MAIN' && expectedQuestion && effectiveQId !== expectedQuestion) {
           throw new ConflictError(
-            `Question sequence mismatch: expected question ${expectedPrimary} at index ${currentIndex}, but received ${effectiveQId}.`
+            `Question sequence mismatch: expected question ${expectedQuestion} at index ${currentIndex}, but received ${effectiveQId}.`
+          );
+        }
+        if (
+          branchState === 'FOLLOW_UP' &&
+          expectedQuestion &&
+          effectiveQId !== expectedQuestion &&
+          effectiveQId !== sessionData.activeFollowUpQuestionId
+        ) {
+          throw new ConflictError(
+            `Question sequence mismatch: expected follow-up question ${sessionData.activeFollowUpQuestionId || expectedQuestion} at index ${currentIndex}, but received ${effectiveQId}.`
           );
         }
       }
@@ -372,6 +419,7 @@ export class FirestoreSessionRepository implements ISessionRepository {
         xpAwarded = evaluation.awarded_xp || 0;
       }
 
+
       // Session progression metrics (Invariant B: correctCount tracks mastered Primaries)
       const totalQuestions = sessionData.questionIds?.length || 10;
       const oldXp = typeof sessionData.totalXpEarned === 'number' ? sessionData.totalXpEarned : 0;
@@ -406,34 +454,53 @@ export class FirestoreSessionRepository implements ISessionRepository {
         targetQuestionIndex = concludingState.finalQuestionIndex;
       } else if (branchState === 'MAIN' && !isCorrect) {
         // Remedial transition: branch to FOLLOW_UP
-        const linkedFu = await defaultQuestionRepository.getFollowUpQuestion(activePrimaryId);
-        const fuId = linkedFu?.question_id || `${activePrimaryId.replace('-TH', '')}-PR`;
-        sessionUpdates = {
-          status: 'IN_PROGRESS',
-          questionsCompleted: false,
-          branchState: 'FOLLOW_UP',
-          activeMainQuestionId: activePrimaryId,
-          activeFollowUpQuestionId: fuId,
-          currentQuestionIndex: currentIndex,
-          totalXpEarned: newXp,
-          correctCount: newCorrect,
-          updatedAt: serverTimestamp,
-        };
-        targetQuestionIndex = currentIndex;
+        const totalSessionSlots = sessionData.questionIds?.length || 10;
+        const isFinalSlot = currentIndex >= totalSessionSlots - 1;
+
+        if (isFinalSlot) {
+          // Final sequence slot: cannot allocate an 11th slot for Follow-Up
+          const concludingState = buildConcludingSessionTransition(sessionData, serverTimestamp);
+          sessionUpdates = {
+            ...concludingState.sessionUpdates,
+            totalXpEarned: newXp,
+            correctCount: newCorrect,
+          };
+          isSessionComplete = concludingState.isSessionComplete;
+          sessionStatus = concludingState.sessionStatus;
+          questionsCompleted = concludingState.questionsCompleted;
+          targetQuestionIndex = concludingState.finalQuestionIndex;
+        } else {
+          // Assign Follow-Up to the next sequence position and keep total slots capped at 10
+          const linkedFu = await defaultQuestionRepository.getFollowUpQuestion(activePrimaryId);
+          const fuId = linkedFu?.question_id || `${activePrimaryId.replace('-TH', '')}-PR`;
+          const nextIndex = currentIndex + 1;
+          const currentQIds = Array.isArray(sessionData.questionIds) ? [...sessionData.questionIds] : [];
+          const updatedQIds = [
+            ...currentQIds.slice(0, nextIndex),
+            fuId,
+            ...currentQIds.slice(nextIndex),
+          ].slice(0, 10);
+
+          sessionUpdates = {
+            status: 'IN_PROGRESS',
+            questionsCompleted: false,
+            branchState: 'FOLLOW_UP',
+            activeMainQuestionId: activePrimaryId,
+            activeFollowUpQuestionId: fuId,
+            currentQuestionIndex: nextIndex,
+            questionIds: updatedQIds,
+            totalXpEarned: newXp,
+            correctCount: newCorrect,
+            updatedAt: serverTimestamp,
+          };
+          targetQuestionIndex = nextIndex;
+        }
       } else {
         throw new ConflictError(`INVALID_SESSION_TRANSITION: Cannot transition from branch '${branchState}'.`);
       }
 
-      sessionUpdates['questionIds'] = sessionData.questionIds;
+      sessionUpdates['questionIds'] = sessionUpdates['questionIds'] || sessionData.questionIds;
 
-      if (powerUpsActive && Array.isArray(powerUpsActive)) {
-        if (powerUpsActive.includes('FIFTY_FIFTY')) {
-          sessionUpdates['powerUpsUsed.FIFTY_FIFTY'] = admin.firestore.FieldValue.arrayUnion(questionId);
-        }
-        if (powerUpsActive.includes('LEARN')) {
-          sessionUpdates['powerUpsUsed.LEARN'] = admin.firestore.FieldValue.arrayUnion(questionId);
-        }
-      }
 
       // Topic queue rotation on concluding branch
       let shouldRotateTopic = false;
@@ -483,7 +550,6 @@ export class FirestoreSessionRepository implements ISessionRepository {
         userAnswerPayload,
         result: isCorrect ? 'CORRECT' : 'INCORRECT',
         xpAwarded,
-        powerUpsActive: powerUpsActive || [],
         clientTimestamp: Date.now(),
         createdAt: serverTimestamp,
         serverTimestamp,
@@ -499,6 +565,7 @@ export class FirestoreSessionRepository implements ISessionRepository {
       // 3.4 Conditionally Update User Document (Invariant A & Topic Queue)
       const userUpdates: Record<string, any> = {};
       if (isEligiblePrimaryCompletion && validatedUserDoc && userSnap && userSnap.exists) {
+        const prevCompletions = validatedUserDoc.lifetimeCompletedQuestionIds?.length || 0;
         userUpdates['lifetimeCompletedQuestionIds'] = admin.firestore.FieldValue.arrayUnion(activePrimaryId);
         userUpdates['completedQuestionsCount'] = admin.firestore.FieldValue.increment(1);
         userUpdates['totalXp'] = admin.firestore.FieldValue.increment(xpAwarded);
@@ -583,8 +650,9 @@ export class FirestoreSessionRepository implements ISessionRepository {
           isSessionComplete,
           questionsCompleted,
           attemptId,
+          activeFollowUpQuestionId: sessionUpdates.activeFollowUpQuestionId || null,
           createdAt: serverTimestamp,
-        };
+        } as any;
         transaction.set(receiptRef, receiptDoc);
       }
 
@@ -648,7 +716,21 @@ export class FirestoreSessionRepository implements ISessionRepository {
       const oldCorrect = currentLearningState.totalCorrectAnswersCount || 0;
       const oldLongest = currentLearningState.longestStreak || 0;
       const lastActiveDate = currentLearningState.lastActiveDate || null;
-      const newStreak = lastActiveDate === todayDateStr ? oldStreak : oldStreak + 1;
+
+      let newStreak: number;
+      if (lastActiveDate === todayDateStr) {
+        // Multiple completions within the same learning cycle: preserve current streak (do not increment again)
+        newStreak = oldStreak > 0 ? oldStreak : 1;
+      } else {
+        const elapsedCycles = getElapsedDailyCycles(lastActiveDate, todayDateStr);
+        if (elapsedCycles === 1) {
+          // Exactly one cycle elapsed (consecutive cycles): increment streak by 1
+          newStreak = oldStreak + 1;
+        } else {
+          // Inactivity gap (> 1 cycle) or first time completion (NaN / missing): reset streak to 1
+          newStreak = 1;
+        }
+      }
 
       // 3. Derive authoritative stats from server-verified session state
       const verifiedAttemptXp = typeof sessionData?.totalXpEarned === 'number'
@@ -679,8 +761,6 @@ export class FirestoreSessionRepository implements ISessionRepository {
         completedQuestionsCount: authoritativeCompletedQuestions,
         totalCorrectAnswersCount: oldCorrect + verifiedCorrectCount,
         currentLevel,
-        streakShieldActive: currentLearningState.streakShieldActive ?? false,
-        streakShieldConsumed: currentLearningState.streakShieldConsumed ?? false,
       };
 
       const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -828,6 +908,8 @@ export class FirestoreSessionRepository implements ISessionRepository {
       return reconciliation.reconciledSession;
     });
   }
+
+
 }
 
 export const defaultSessionRepository = new FirestoreSessionRepository();

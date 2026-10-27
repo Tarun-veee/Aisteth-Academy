@@ -21,10 +21,6 @@ export interface DailySessionDoc {
   totalXpEarned: number;
   correctCount: number;
   accuracy: number;
-  powerUpsUsed: {
-    FIFTY_FIFTY: string[];
-    LEARN: string[];
-  };
   branchState?: BranchState;
   activeMainQuestionId?: string;
   activeFollowUpQuestionId?: string | null;
@@ -48,7 +44,6 @@ export interface AttemptDoc {
   userAnswerPayload: Record<string, any>;
   result: 'CORRECT' | 'INCORRECT';
   xpAwarded: number;
-  powerUpsActive: string[];
   isFollowUp?: boolean;
   isReattempt?: boolean;
   parentQuestionId?: string | null;
@@ -65,7 +60,6 @@ export interface UserStats {
   completedQuestionsCount: number;
   completedSessionsCount: number;
   totalCorrectAnswersCount: number;
-  streakShieldConsumed?: boolean;
 }
 
 export interface SubmissionReceiptDoc {

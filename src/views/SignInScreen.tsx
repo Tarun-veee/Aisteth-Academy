@@ -206,12 +206,23 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({
             </Button>
           </div>
         </form>
+
+        {/* Admin-Led Onboarding Guidance */}
+        <div className="w-full mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200 text-left">
+          <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+            <span>Admin-Led Trainee Onboarding</span>
+          </p>
+          <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+            Your AuSkill account is created by your RBSK supervisor. Simply enter your registered mobile number and password to begin today's training.
+          </p>
+        </div>
       </div>
 
       {/* Footer / Create Account Navigation */}
-      <div className="w-full max-w-sm mx-auto text-center pt-6 pb-2 border-t border-slate-100 mt-4">
+      <div className="w-full max-w-sm mx-auto text-center pt-5 pb-2 border-t border-slate-100 mt-3">
         <p className="text-xs text-content-secondary">
-          Don't have an account?{' '}
+          Need supervisor assistance or to{' '}
           <button
             type="button"
             onClick={onNavigateSignUp}
@@ -219,6 +230,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({
           >
             Create account
           </button>
+          ? Contact your local RBSK coordinator.
         </p>
       </div>
     </div>

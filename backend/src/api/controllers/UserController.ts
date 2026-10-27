@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { LeaderboardUseCase } from '../../application/usecases/LeaderboardUseCase.js';
 import { defaultUserRepository } from '../../infrastructure/firestore/FirestoreUserRepository.js';
 
+
 export const leaderboardUseCase = new LeaderboardUseCase(defaultUserRepository);
 
 export class UserController {
@@ -49,4 +50,5 @@ export class UserController {
     }
   }
 }
+
 

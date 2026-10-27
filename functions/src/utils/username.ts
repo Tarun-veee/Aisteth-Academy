@@ -96,16 +96,9 @@ export function validateTraineeRegistrationInput(payload: unknown): RegisterWith
   const rawDesignation = String(raw.designation || '').trim().toUpperCase() as Designation;
   const designation = VALID_DESIGNATIONS.includes(rawDesignation) ? rawDesignation : 'ASHA';
 
-  // 5. State & District
-  const state = String(raw.state || '').trim();
-  if (!state) {
-    throw new Error('State selection is required.');
-  }
-
-  const district = String(raw.district || '').trim();
-  if (!district) {
-    throw new Error('District selection is required.');
-  }
+  // 5. Optional Legacy State & District
+  const state = raw.state ? String(raw.state).trim() : undefined;
+  const district = raw.district ? String(raw.district).trim() : undefined;
 
   // 6. Optional Health Sub-Centre
   const healthSubCentre = raw.healthSubCentre ? String(raw.healthSubCentre).trim() : '';
@@ -128,8 +121,8 @@ export function validateTraineeRegistrationInput(payload: unknown): RegisterWith
     password,
     displayName,
     designation,
-    district,
-    state,
+    ...(district ? { district } : {}),
+    ...(state ? { state } : {}),
     healthSubCentre,
     optionalEmail,
   };

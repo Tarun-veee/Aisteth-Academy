@@ -643,17 +643,82 @@ export const REL_V1_0_0_QUESTIONS: ReleaseQuestionMetadata[] = [
   { questionId: 'MG-AIL-10-PR', questionType: 'Follow-Up', difficultyRank: 10 },
 ];
 
-export function getResolvedCalendarDate(
+export const DAILY_CYCLE_RESET_HOUR_IST = 9; // 09:00:00 IST
+
+/**
+ * Computes the authoritative daily cycle date in Asia/Kolkata timezone.
+ *
+ * Daily learning cycle boundary: exactly 09:00:00 IST (UTC+05:30).
+ * - Prior to 09:00:00 IST, the previous calendar date's cycle remains active.
+ * - At or after 09:00:00 IST, the current calendar date's cycle is active.
+ *
+ * Shifting the timestamp back by 9 hours aligns 09:00:00 IST with 00:00:00 IST
+ * of the active cycle date.
+ */
+export function getDailyCycleDate(
   date: Date = new Date(),
   timeZone: string = DEFAULT_APP_TIMEZONE
 ): string {
+  const shifted = new Date(date.getTime() - DAILY_CYCLE_RESET_HOUR_IST * 60 * 60 * 1000);
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   });
-  return formatter.format(date);
+  return formatter.format(shifted);
+}
+
+/**
+ * Authoritative daily cycle resolution alias.
+ */
+export function getResolvedCalendarDate(
+  date: Date = new Date(),
+  timeZone: string = DEFAULT_APP_TIMEZONE
+): string {
+  return getDailyCycleDate(date, timeZone);
+}
+
+/**
+ * Returns the cycle start and end boundaries for a given cycle date string (YYYY-MM-DD).
+ */
+export function getDailyCycleWindow(cycleDate: string): { start: Date; end: Date } {
+  const start = new Date(`${cycleDate}T09:00:00.000+05:30`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { start, end };
+}
+
+/**
+ * Computes the integer number of 09:00 IST learning cycles elapsed between two cycle date strings.
+ *
+ * Rules:
+ * - Returns 0 if both dates are the same cycle (same day completion).
+ * - Returns 1 if currentCycleDate is exactly the next consecutive cycle after lastCycleDate.
+ * - Returns > 1 if an inactivity gap occurred (learner missed one or more cycles).
+ * - Returns < 0 if currentCycleDate is earlier than lastCycleDate (clock skew / out of order).
+ * - Returns NaN if either cycle date is missing, empty, or not in YYYY-MM-DD format.
+ */
+export function getElapsedDailyCycles(
+  lastCycleDate: string | null | undefined,
+  currentCycleDate: string
+): number {
+  if (!lastCycleDate || typeof lastCycleDate !== 'string') return NaN;
+  if (!currentCycleDate || typeof currentCycleDate !== 'string') return NaN;
+
+  const lastParts = lastCycleDate.trim().split('-').map(Number);
+  const currentParts = currentCycleDate.trim().split('-').map(Number);
+
+  if (lastParts.length !== 3 || currentParts.length !== 3) return NaN;
+  const [y1, m1, d1] = lastParts;
+  const [y2, m2, d2] = currentParts;
+  if (isNaN(y1) || isNaN(m1) || isNaN(d1) || isNaN(y2) || isNaN(m2) || isNaN(d2)) return NaN;
+
+  // Use the canonical 09:00 IST start boundaries for both cycle dates
+  const window1 = getDailyCycleWindow(`${lastParts[0]}-${String(m1).padStart(2, '0')}-${String(d1).padStart(2, '0')}`);
+  const window2 = getDailyCycleWindow(`${currentParts[0]}-${String(m2).padStart(2, '0')}-${String(d2).padStart(2, '0')}`);
+
+  const diffMs = window2.start.getTime() - window1.start.getTime();
+  return Math.round(diffMs / (24 * 60 * 60 * 1000));
 }
 
 export function computeDayParity(dateStr: string): number {

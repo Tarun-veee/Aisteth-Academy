@@ -86,8 +86,6 @@ service cloud.firestore {
         'displayName',
         'designation',
         'healthSubCentre',
-        'district',
-        'state',
         'optionalEmail',
         'trainingTimeZone',
         'updatedAt',

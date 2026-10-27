@@ -24,4 +24,6 @@ export interface IAuthProvider {
   deleteUser(uid: string): Promise<void>;
   revokeUserSessions(uid: string): Promise<void>;
   generatePasswordResetLink(email: string): Promise<string>;
+  updateUserPassword?(uid: string, password: string): Promise<void>;
+  updateUserDisabled?(uid: string, disabled: boolean): Promise<void>;
 }

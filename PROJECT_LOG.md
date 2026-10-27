@@ -29,6 +29,8 @@
 20. [Phase 2 Backend Scalability Forensic Audit, Concurrency Reconciliation & Controlled Load Hardening](#20-phase-2-backend-scalability-forensic-audit-concurrency-reconciliation--controlled-load-hardening-completed-2026-10-08)
 21. [Phase 1 Implementation: Layered Node.js + Express Backend & Frontend Firebase Eradication](#21-phase-1-implementation-layered-nodejs--express-backend--frontend-firebase-eradication)
 22. [Security & Data-Integrity Remediation (F-01, F-02, F-03)](#22-security--data-integrity-remediation-f-01-f-02-f-03)
+23. [Phase 29 — Bug Fix: Administrator Role Elevation & Account Lookup Architecture](#29-bug-fix-administrator-role-elevation--account-lookup-architecture-admin_tester-to-platform_admin)
+24. [Phase 30 — Admin-Led Learner Onboarding Implementation](#30-phase-30--admin-led-learner-onboarding-implementation)
 
 ---
 
@@ -1845,5 +1847,189 @@ Implemented 1:1 parent-child verification function in `backend/src/domain/rules/
 - **Live Database Writes**: **ZERO**. No writes to cloud Firestore, staging, or production databases.
 - **Cloud Deployments**: **ZERO**. No Cloud Functions or Firebase Hosting deployments.
 - **Stage 3 Scope Gated**: Atomic Firestore transactions, runtime persistence, and session controller mutations are **STRICTLY ON HOLD** pending explicit user approval (Gate C).
+
+---
+
+## 29. Bug Fix: Administrator Role Elevation & Account Lookup Architecture (`admin_tester` to `PLATFORM_ADMIN`)
+
+> **Execution Date**: 2026-10-27  
+> **Scope**: Investigation and resolution of administrator role elevation failure when invoking `node backend/scripts/set_admin_role.js admin_tester PLATFORM_ADMIN`.  
+> **Status**: COMPLETED & VERIFIED. Real test account `admin_tester` successfully elevated to `PLATFORM_ADMIN` in both Firestore and Firebase Authentication custom claims. Multi-strategy user resolution, idempotent elevation, and automated unit test suite implemented.
+
+### 29.1 Root Cause Investigation
+1. **Firestore Keying Architecture vs. CLI Target**:
+   - In Firestore, trainee profile documents are keyed by Firebase Auth UID: `users/${uid}` (e.g., `users/UjofqlcL6pWLL4jq7WtEZliab8L2`).
+   - The legacy `set_admin_role.js` script performed a naïve lookup:
+     1. Checked `usernames.doc(target.toLowerCase())` (e.g. `usernames/admin_tester`).
+     2. If absent, fell back to `users.doc(target)` (e.g. `users/admin_tester`).
+     3. Threw `Error: User document "users/admin_tester" does not exist in Firestore.`
+2. **Registration Normalization & Account State**:
+   - The user registered with username `admin_tester`, full name `admin_tester`, and designation `ASHA_WORKER`.
+   - In Firebase Authentication: UID `UjofqlcL6pWLL4jq7WtEZliab8L2`, email `admintester@trainee.aisteth.internal`, displayName `admin_tester`.
+   - In Firestore `users` collection: document `users/UjofqlcL6pWLL4jq7WtEZliab8L2` (`displayName: 'admin_tester'`, `username: 'admintester'`, `syntheticEmail: 'admintester@trainee.aisteth.internal'`, `role: 'TRAINEE'`).
+   - In Firestore `usernames` collection: document `usernames/admintester` (stripped of underscore during sign-up normalization).
+   - Because `usernames/admin_tester` did not exist, the script defaulted to `users.doc('admin_tester')` which failed.
+
+### 29.2 Architectural Fix & Multi-Strategy Resolution
+Updated `backend/scripts/set_admin_role.js`:
+1. **Multi-Strategy User Identifier Resolution (`resolveUserIdentifier`)**:
+   - **Strategy 1**: Direct Firestore UID check (`users/${target}`).
+   - **Strategy 2**: Firebase Auth UID lookup (`auth.getUser(target)`).
+   - **Strategy 3**: Exact username mapping (`usernames/${target.toLowerCase()}`).
+   - **Strategy 4**: Sanitized username mapping (`usernames/${target.replace(/[^a-zA-Z0-9]/g, '')}`).
+   - **Strategy 5**: Firestore profile query by `username` field.
+   - **Strategy 6**: Firestore profile query by `displayName` field.
+   - **Strategy 7**: Firestore profile query by `optionalEmail` / `syntheticEmail` fields.
+   - **Strategy 8**: Firebase Auth user lookup by email.
+2. **Dual-Layer RBAC Authorization Update**:
+   - Updates Firestore user document `users/${uid}.role = role` without overwriting or mutating any unrelated trainee profile attributes.
+   - Updates Firebase Authentication custom claims: `auth.setCustomUserClaims(uid, { role })`.
+   - Creates alias mapping `usernames/${lowerTarget} -> { uid, ... }` to ensure instantaneous future lookups.
+   - Validates role against `VALID_ADMIN_ROLES = ['PLATFORM_ADMIN', 'SUPERVISOR']`.
+   - Provides clear error messaging if user cannot be found or profile document is missing.
+   - Exports `resolveUserIdentifier`, `setAdminRole`, and `VALID_ADMIN_ROLES` for isolated testing.
+
+### 29.3 Verification & Live Elevation Results
+1. **Executed Role Elevation**:
+   - Command: `node backend/scripts/set_admin_role.js admin_tester PLATFORM_ADMIN`
+   - Output:
+     - Resolved identifier `admin_tester` to UID: `UjofqlcL6pWLL4jq7WtEZliab8L2`
+     - Updated `users/UjofqlcL6pWLL4jq7WtEZliab8L2.role` from `TRAINEE` to `PLATFORM_ADMIN`
+     - Set Firebase Auth custom claims `{ role: "PLATFORM_ADMIN" }`
+     - Created index alias `usernames/admin_tester` -> `UjofqlcL6pWLL4jq7WtEZliab8L2`
+2. **Session Refresh Note**:
+   - Existing active browser sessions must sign out and sign in (or trigger token refresh) to acquire the new custom claims in their client JWT.
+3. **Automated Unit & Integration Tests**:
+   - Created `backend/tests/setAdminRole.test.ts` (12 tests covering resolution strategies, invalid roles, non-existent users, dual-layer persistence, idempotent execution, and `requireAdminRole` middleware enforcement).
+   - Full workspace test suite: **41 test files passed, 625 / 625 tests passed**.
+   - Backend & frontend production builds: Clean, **0 errors**.
+
+---
+
+## 30. Phase 30 — Admin-Led Learner Onboarding Implementation
+
+> **Execution Date**: 2026-10-27  
+> **Scope**: Implementation of the official **Admin-Led Learner Onboarding** decision for AuSkill (AiSteth RBSK Learning Engine). Eliminates public worker self-registration, empowers platform administrators and supervisors to provision worker accounts individually or in bulk, manages worker lifecycle (editing, deactivation, credential regeneration), and preserves all existing learning functionality, daily sessions, streaks, and gamification.  
+> **Status**: COMPLETED & VERIFIED. Full automated test suite passes (41 test files, 632 / 632 tests), backend and frontend production builds pass with zero errors.
+
+### 30.1 Background & Strategic Onboarding Decision
+- **Core Directive**: Frontline RBSK healthcare workers (ASHA and Anganwadi workers) operating in rural health sub-centres may possess limited technical dexterity. Forcing them through multi-step self-registration forms, email confirmations, or profile setup undermines adoption and risks non-compliance.
+- **Approved Approach**: The healthcare organisation already maintains official rosters of RBSK workers and their verified phone numbers. Platform administrators and supervisors provision worker accounts in AuSkill either individually or through bulk spreadsheet (CSV) imports. Workers are provided with simple access instructions containing their mobile number / username and a secure temporary password.
+- **Worker Experience Principles**:
+  1. Frontline workers sign in directly using their provisioned credentials—no self-registration, no complex profile configuration.
+  2. Workers immediately land on their daily learning dashboard to answer their 10 daily clinical questions.
+  3. Worker identity verification and role-based access controls remain strictly enforced.
+
+### 30.2 Architectural Changes & Data Model Extensions
+
+1. **User Profile Model (`UserProfileDoc` & `admin.types.ts`)**:
+   - Added `accountStatus: 'ACTIVE' | 'DEACTIVATED' | 'PENDING'` field to track account operational state.
+   - Added `deactivatedLearners` metric counter to `AdminOverviewStats`.
+   - Added `accountStatus` filtering to `ListLearnersQuery` (`GET /api/v1/admin/learners?accountStatus=ACTIVE|DEACTIVATED`).
+   - Extended `LearnerSummaryItem` to include `accountStatus`.
+   - Defined `UpdateLearnerInput` (supporting authorized updates to `displayName`, `designation`, `state`, `district`, `healthSubCentre`, `phoneNumber`, `accountStatus`).
+   - Defined `ResetCredentialsResult` for secure temporary password generation.
+
+2. **Dual-Layer Account Deactivation & Session Revocation**:
+   - Deactivating a worker via `PATCH /api/v1/admin/learners/:uid/status` or `PATCH /api/v1/admin/learners/:uid` (`accountStatus = 'DEACTIVATED'`):
+     - Sets `accountStatus: 'DEACTIVATED'` on the Firestore user document `users/${uid}`.
+     - Calls `authProvider.revokeUserSessions(uid)` to invalidate all active Firebase Auth refresh tokens.
+     - Calls `authProvider.updateUserDisabled(uid, true)` via Firebase Admin SDK (`adminAuth.updateUser(uid, { disabled: true })`) to block future sign-in attempts at the identity provider layer.
+   - In `AuthUseCase.ts`:
+     - Both `login` and `getUserProfileAndStats` explicitly verify `accountStatus !== 'DEACTIVATED'`. If deactivated, requests are rejected with HTTP 403 (`FORBIDDEN_ACCOUNT_DEACTIVATED: This account has been deactivated by the administrator.`).
+
+3. **Authorized Worker Profile Updates & Index Re-anchoring**:
+   - Admins can update a worker's full name, clinical designation, district, state, and health sub-centre.
+   - Phone number updates:
+     - Validates Indian mobile number format via `WhatsAppOnboardingService.normalizePhoneNumber()`.
+     - Checks `phone_numbers/${normalizedPhone}` index to prevent collision with other active accounts.
+     - Releases previous phone reservation index (`phone_numbers/${oldPhone}`) and atomically reserves and activates the new phone mapping (`phone_numbers/${newPhone}`).
+
+4. **Credential Regeneration & Access Instruction Formatting**:
+   - Endpoint: `POST /api/v1/admin/learners/:uid/reset-credentials`.
+   - Generates a cryptographically random, user-friendly temporary password (`AuSkill@<last4digits><random3digits>`).
+   - Updates password in Firebase Auth via `adminAuth.updateUser()`.
+   - Revokes previous sessions (`revokeUserSessions`).
+   - Generates a ready-to-send access instructions template for SMS/WhatsApp containing:
+     - Worker's Name
+     - Login ID (Phone Number or `@username`)
+     - Temporary Password
+     - App Portal URL (`APP_BASE_URL` or default `http://localhost:3000`)
+     - Instruction to complete daily 10-question clinical mission.
+
+5. **Frontline Sign-In Experience Simplification (`SignInScreen.tsx`)**:
+   - Added prominent **Admin-Led Onboarding Notice** on the worker login screen explaining that accounts are created by health department supervisors.
+   - Updated footer guidance pointing workers to contact their RBSK District Coordinator if they do not yet have login credentials.
+   - Preserved legacy link compatibility for testing invariants.
+
+6. **Admin Dashboard Enhancements**:
+   - **Learners Directory (`AdminLearnerList.tsx`)**:
+     - Added **Account Status** column with distinct badges (`Active` in green, `Deactivated` in red).
+     - Added **Account Status Tabs** (`All Status`, `Active`, `Deactivated`) alongside Onboarding status filters.
+   - **Worker Management Modal (`LearnerDetailModal.tsx`)**:
+     - Added editable form fields for Name, Designation, Phone Number, State, District, and Sub-Centre with live validation.
+     - Added one-click **Deactivate Account / Reactivate Account** action with confirmation dialog.
+     - Added **Regenerate Temporary Password** button and copyable **Access Instructions Card** with one-click copy and WhatsApp dispatch action.
+
+7. **Preservation of Learning Engine Integrity**:
+   - All 620 clinical curriculum questions, 5 question types, XP scoring, streak counters, power-up systems (50/50, Learn, Shield), Daily Session state machine, Review Vault, and leaderboard calculations remain completely untouched and fully functional.
+
+### 30.3 Engagelo WhatsApp Integration Status
+- Audited API contract documented in `WHATSAPP_INTEGRATION_API_DOCUMENTATION.md`.
+- `WhatsAppOnboardingService.ts` maintains accurate onboarding lifecycle state (`NOT_INITIATED`, `PENDING_DELIVERY`, `DELIVERED`, `FAILED_INVALID_NUMBER`).
+- Ready for Meta Graph API / Engagelo webhook integration when credentials are supplied.
+
+### 30.4 Test Suite & Production Build Verification
+- **Automated Vitest Suite**:
+  - `backend/tests/adminOnboarding.test.ts`: Added Section 6 covering login blocking for deactivated users, credential regeneration, phone re-anchoring, collision rejection, and status toggling (22 / 22 tests passing).
+  - Full workspace suite: **41 test files passed, 632 / 632 tests passed (100% pass rate)**.
+- **Production Builds**:
+  - Backend: `npm.cmd --prefix backend run build` -> Clean TypeScript build, dataset packaged (620 questions, 588,126 bytes).
+  - Frontend: `npm.cmd run build` -> Clean Vite production build, PWA service worker generated.
+
+---
+
+## 31. Phase 31 — Elimination of State and District Selection Across Application (Completed 2026-10-27)
+
+### 31.1 Architecture Decision & Rationale
+To streamline learner onboarding, administrative workflows, and frontline user profiles:
+- **State and District fields have been eliminated** across all registration forms, user profile screens, and admin interfaces.
+- **Health Sub-Centre / Facility is preserved** as the single authoritative location field representing the frontline worker's duty station.
+- **Backward Compatibility**: Existing database records containing `state` and `district` are gracefully hydrated without runtime errors. The bulk CSV importer tolerates and ignores legacy `State` and `District` columns without failing imports.
+- **Security Rules**: `firestore.rules` updated so trainees cannot mutate legacy location fields, maintaining strict allow-list protections.
+
+### 31.2 Files Updated & Modified
+1. **Domain Models & DTOs**:
+   - `backend/src/domain/models/admin.types.ts`: Removed `district` and `state` from `SingleLearnerInput`, `UpdateLearnerInput`, `ListLearnersQuery`; retained optional legacy fields in `LearnerSummaryItem` and `BulkLearnerRowInput`.
+   - `backend/src/domain/models/user.model.ts`: Marked `district` and `state` optional legacy fields in `UserProfileDoc`.
+   - `backend/src/api/dtos/auth.dto.ts`: Made `district` and `state` optional legacy parameters in `RegisterRequestDTO`, removed from `UpdateProfileRequestDTO`.
+   - `src/models/user.types.ts` & `src/models/auth.types.ts` & `src/models/admin.types.ts`: Synchronized frontend models with backend specifications.
+2. **Backend & Functions Use Cases**:
+   - `backend/src/application/usecases/AuthUseCase.ts`: Removed mandatory district/state validations and profile mappings in `login`, `getUserProfileAndStats`, and `updateProfile`.
+   - `backend/src/application/usecases/AdminLearnerUseCase.ts`: Removed district/state mandatory validation in `registerSingleLearner`, search filtering in `listLearners`, and updates in `updateLearner`.
+   - `backend/src/infrastructure/firestore/FirestoreUserRepository.ts`: Conditional write/read for legacy `district` and `state`.
+   - `backend/src/api/controllers/AdminController.ts`: Removed `district` query filter.
+   - `functions/src/types/auth.types.ts`, `functions/src/utils/username.ts`, `functions/src/services/registrationService.ts`: Made state and district optional legacy inputs.
+3. **Frontend Application Views**:
+   - `src/views/SignUpScreen.tsx`: Removed State and District dependent dropdown selectors and validation. Preserved Health Sub-Centre.
+   - `src/views/ProfileScreen.tsx`: Removed State and District selectors from edit form. Location display now presents Health Sub-Centre.
+   - `src/views/admin/AdminAddLearner.tsx`: Removed State and District input grid and validation. Preserved Health Sub Centre (Optional).
+   - `src/views/admin/AdminBulkImport.tsx`: Updated sample CSV template and preview table to remove district/state and feature Health Sub-Centre. Added backward-compatible parsing to ignore older CSV state/district columns.
+   - `src/views/admin/AdminLearnerList.tsx`: Replaced "Location" table column with "Facility / Sub-Centre".
+   - `src/views/admin/LearnerDetailModal.tsx`: Removed State and District dropdowns from edit form; displays Health Sub Centre in detail view.
+   - `src/api/userApi.ts`, `src/api/authApi.ts`, `src/api/adminApi.ts`, `src/services/AuthService.ts`, `src/hooks/useUserProfile.ts`: Cleaned of district and state parameters.
+4. **Security & Documentation**:
+   - `firestore.rules`: Trainee profile update allow-list updated (`allowedTopLevelKeys` no longer permits `district` or `state` updates).
+   - `docs/DATABASE_SCHEMA.md`: Documented `district` and `state` as optional legacy fields.
+
+### 31.3 Verification & Quality Assurance
+- **Automated Vitest Suite**:
+  - Full workspace suite: **41 test files passed, 631 / 631 tests passed (100% pass rate)**.
+- **Production Builds**:
+  - Backend: `npm.cmd --prefix backend run build` -> Clean TypeScript build, dataset packaged (620 questions, 588,126 bytes).
+  - Frontend: `npm.cmd run build` -> Clean Vite production build (1953 modules transformed, PWA service worker generated).
+
+
+
 
 

@@ -13,12 +13,12 @@ import {
 import {
   User,
   MapPin,
-  Building2,
   ChevronRight,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck,
+  LayoutDashboard
 } from 'lucide-react';
-import { INDIAN_STATES_AND_UTS, getDistrictsForState } from '../data/indiaLocations';
 
 export interface ProfileScreenProps {
   userProfile?: UserProfile;
@@ -27,6 +27,7 @@ export interface ProfileScreenProps {
   onBack: () => void;
   onEditProfile?: () => void;
   onSignOut?: () => void;
+  onNavigateAdmin?: () => void;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
@@ -36,6 +37,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onBack,
   onEditProfile,
   onSignOut,
+  onNavigateAdmin,
 }) => {
   const {
     profile,
@@ -54,8 +56,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'ASHA_WORKER' | 'ANGANWADI_WORKER' | 'HEALTH_VOLUNTEER'>('ASHA_WORKER');
-  const [editDistrict, setEditDistrict] = useState('');
-  const [editState, setEditState] = useState('');
   const [editCenter, setEditCenter] = useState('');
 
   // Helper for human-friendly role name
@@ -68,7 +68,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const roleDisplay = formatRoleDisplay(profile.role);
-  const locationDisplay = [profile.district, profile.state].filter(Boolean).join(', ') || 'Bengaluru, Karnataka';
   const subCentreDisplay = profile.healthSubCentre || profile.centerName || 'Health Sub-Centre';
 
   // Defensive values to prevent any NaN, null, or undefined displays
@@ -84,8 +83,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     } else {
       setEditName(profile.name || '');
       setEditRole((profile.role as 'ASHA_WORKER' | 'ANGANWADI_WORKER' | 'HEALTH_VOLUNTEER') || 'ASHA_WORKER');
-      setEditDistrict(profile.district || '');
-      setEditState(profile.state || '');
       setEditCenter(profile.healthSubCentre || profile.centerName || '');
       setIsEditing(true);
     }
@@ -96,8 +93,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       await updateProfile({
         name: editName.trim() || profile.name || 'Frontline Trainee',
         role: editRole,
-        district: editDistrict.trim() || profile.district,
-        state: editState.trim() || profile.state,
         healthSubCentre: editCenter.trim() || profile.healthSubCentre || profile.centerName,
         centerName: editCenter.trim() || profile.centerName,
       });
@@ -185,16 +180,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </Badge>
               </div>
 
-              {subCentreDisplay && (
-                <div className="flex items-center gap-1.5 text-xs text-content-secondary mt-1 truncate">
-                  <Building2 className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                  <span className="truncate">{subCentreDisplay}</span>
-                </div>
-              )}
-
-              <div className="flex items-center gap-1.5 text-xs text-content-secondary mt-0.5 truncate">
+              <div className="flex items-center gap-1.5 text-xs text-content-secondary mt-1 truncate">
                 <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                <span className="truncate">{locationDisplay}</span>
+                <span className="truncate">{subCentreDisplay}</span>
               </div>
             </div>
           </div>
@@ -257,53 +245,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-content-primary mb-0.5">
-                    State
-                  </label>
-                  <select
-                    value={editState}
-                    onChange={(e) => {
-                      const newState = e.target.value;
-                      setEditState(newState);
-                      const validDistricts = getDistrictsForState(newState);
-                      if (!validDistricts.includes(editDistrict)) {
-                        setEditDistrict(validDistricts[0] || '');
-                      }
-                    }}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-content-primary font-medium focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-xs cursor-pointer"
-                  >
-                    <option value="">Select State</option>
-                    {INDIAN_STATES_AND_UTS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-content-primary mb-0.5">
-                    District
-                  </label>
-                  <select
-                    value={editDistrict}
-                    onChange={(e) => setEditDistrict(e.target.value)}
-                    disabled={!editState || getDistrictsForState(editState).length === 0}
-                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-content-primary font-medium focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-xs cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
-                  >
-                    <option value="">
-                      {editState ? 'Select District' : 'Select State first'}
-                    </option>
-                    {getDistrictsForState(editState).map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-content-primary mb-0.5">
@@ -389,6 +331,41 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </Card>
           </div>
         </div>
+
+        {/* ============================================================ */}
+        {/* SECTION 2.5: ADMINISTRATION (ADMINS / SUPERVISORS ONLY) */}
+        {/* ============================================================ */}
+        {(profile.systemRole === 'PLATFORM_ADMIN' || profile.systemRole === 'SUPERVISOR' || (profile as any).role === 'PLATFORM_ADMIN') && onNavigateAdmin && (
+          <div className="space-y-1.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-brand-700 px-0.5 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Administration
+            </h3>
+
+            <Card variant="default" padding="none" className="overflow-hidden border border-brand-200/90 shadow-2xs rounded-xl bg-brand-50/20">
+              <button
+                type="button"
+                onClick={onNavigateAdmin}
+                className="w-full flex items-center justify-between px-3.5 py-3 hover:bg-brand-50/70 active:bg-brand-100/70 transition-colors text-left cursor-pointer min-h-[48px]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <LayoutDashboard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">
+                      Admin Dashboard
+                    </span>
+                    <span className="text-[11px] text-content-secondary">
+                      Manage learner accounts & WhatsApp onboarding
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-brand-500 shrink-0" />
+              </button>
+            </Card>
+          </div>
+        )}
 
         {/* ============================================================ */}
         {/* 4. SECTION 3: ACCOUNT */}

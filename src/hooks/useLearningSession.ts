@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   Question,
   UserAnswerPayload,
-  MCQQuestion,
   AnswerEvaluationResult,
   normalizeQuestion,
 } from '../models/question.types';
@@ -15,7 +14,6 @@ import {
   BranchState,
 } from '../models/session.types';
 import { AnswerEvaluator } from '../services/AnswerEvaluator';
-import { PowerUpService } from '../services/PowerUpService';
 import { defaultQuestionService, QuestionService } from '../services/QuestionService';
 import {
   defaultStorageRepository,
@@ -25,6 +23,7 @@ import {
 import { defaultSessionService, SessionService, generateCanonicalSessionId } from '../services/SessionService';
 import { defaultAuthService } from '../services/AuthService';
 import { sessionApi } from '../api/sessionApi';
+import { userApi } from '../api/userApi';
 
 /**
  * Generates an 8 to 64-char alphanumeric nonce matching `[a-zA-Z0-9_-]{8,64}`
@@ -80,8 +79,6 @@ export function useLearningSession(
     serverPendingTransition: null,
     startTime: null,
     endTime: null,
-    fiftyFiftyEliminatedOptions: {},
-    learnClueRevealed: {},
   });
 
   const [userStats, setUserStats] = useState<UserStats>({
@@ -92,7 +89,6 @@ export function useLearningSession(
     completedQuestionsCount: 0,
     completedSessionsCount: 0,
     totalCorrectAnswersCount: 0,
-    streakShieldConsumed: false,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -102,6 +98,19 @@ export function useLearningSession(
 
   // Load user stats and today's session progress on initial mount
   const refreshUserStats = useCallback(async () => {
+    try {
+      const currentUid = defaultAuthService.getSession()?.userId;
+      if (currentUid) {
+        const res = await userApi.getProfile();
+        if (res && res.stats) {
+          setUserStats(res.stats);
+          await storageRepository.saveUserStats(res.stats);
+          return;
+        }
+      }
+    } catch {
+      // Fallback to storage
+    }
     const stats = await storageRepository.getUserStats();
     setUserStats(stats);
   }, [storageRepository]);
@@ -119,7 +128,8 @@ export function useLearningSession(
           const res = await sessionApi.getTodaySession(todayStr);
           if (res && res.session) {
             const s = res.session;
-            const daily = await storageRepository.getDailySession(todayStr);
+            const cycleDate = s.localDate || todayStr;
+            const daily = await storageRepository.getDailySession(cycleDate);
             const rawQuestions = Array.isArray(res.questions) && res.questions.length > 0
               ? res.questions
               : (daily?.questions && daily.questions.length > 0
@@ -145,7 +155,7 @@ export function useLearningSession(
             if (serverQuestions.length > 0) {
               const syncedDailyData: DailySessionData = {
                 sessionId: s.sessionId,
-                date: todayStr,
+                date: cycleDate,
                 status: isTerminal ? 'QUESTIONS_COMPLETED' : 'IN_PROGRESS',
                 questionsCompleted: Boolean(s.questionsCompleted || isTerminal),
                 reviewViewed: Boolean(s.reviewViewed || s.status === 'REVIEW_VIEWED'),
@@ -157,14 +167,13 @@ export function useLearningSession(
                 totalXpEarned: s.totalXpEarned ?? 0,
                 correctCount: s.correctCount ?? 0,
                 branchState: s.branchState || 'MAIN',
-                fiftyFiftyEliminatedOptions: daily?.fiftyFiftyEliminatedOptions || {},
-                learnClueRevealed: daily?.learnClueRevealed || {},
               };
               await storageRepository.saveDailySession(syncedDailyData);
             }
 
             setSession((prev) => {
               if (
+                prev.sessionId === s.sessionId &&
                 (prev.status === 'IN_PROGRESS' || prev.status === 'ANSWER_SUBMITTED') &&
                 prev.questions.length > 0 &&
                 prev.currentIndex === (s.currentQuestionIndex ?? 0) &&
@@ -198,8 +207,6 @@ export function useLearningSession(
                 serverPendingTransition: null,
                 startTime: isTerminal ? null : (prev.startTime || Date.now()),
                 endTime: isTerminal ? Date.now() : null,
-                fiftyFiftyEliminatedOptions: daily?.fiftyFiftyEliminatedOptions || prev.fiftyFiftyEliminatedOptions || {},
-                learnClueRevealed: daily?.learnClueRevealed || prev.learnClueRevealed || {},
               };
             });
             return;
@@ -243,8 +250,6 @@ export function useLearningSession(
               serverPendingTransition: null,
               startTime: null,
               endTime: null,
-              fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
-              learnClueRevealed: daily.learnClueRevealed || {},
             };
           });
         } else if (daily.status === 'QUESTIONS_COMPLETED') {
@@ -272,8 +277,6 @@ export function useLearningSession(
               serverPendingTransition: null,
               startTime: null,
               endTime: null,
-              fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
-              learnClueRevealed: daily.learnClueRevealed || {},
             };
           });
         } else if (daily.status === 'IN_PROGRESS') {
@@ -301,8 +304,6 @@ export function useLearningSession(
               serverPendingTransition: null,
               startTime: Date.now(),
               endTime: null,
-              fiftyFiftyEliminatedOptions: daily.fiftyFiftyEliminatedOptions || {},
-              learnClueRevealed: daily.learnClueRevealed || {},
             };
           });
         }
@@ -331,8 +332,6 @@ export function useLearningSession(
             serverPendingTransition: null,
             startTime: null,
             endTime: null,
-            fiftyFiftyEliminatedOptions: {},
-            learnClueRevealed: {},
           };
         });
       }
@@ -437,8 +436,6 @@ export function useLearningSession(
           totalXpEarned: initialXp,
           correctCount: initialCorrect,
           branchState: newBranch,
-          fiftyFiftyEliminatedOptions: {},
-          learnClueRevealed: {},
         };
 
         await storageRepository.saveDailySession(newDailyData);
@@ -467,8 +464,6 @@ export function useLearningSession(
           serverPendingTransition: null,
           startTime: Date.now(),
           endTime: null,
-          fiftyFiftyEliminatedOptions: {},
-          learnClueRevealed: {},
         });
       } finally {
         setIsLoading(false);
@@ -522,16 +517,6 @@ export function useLearningSession(
     pendingIdempotencyKeyRef.current = idemKey;
 
     try {
-      const powerUpsActive: string[] = [];
-      if (currentBranch !== 'FOLLOW_UP') {
-        if (session.fiftyFiftyEliminatedOptions?.[currentIndex]) {
-          powerUpsActive.push('FIFTY_FIFTY');
-        }
-        if (session.learnClueRevealed?.[currentIndex]) {
-          powerUpsActive.push('LEARN');
-        }
-      }
-
       const selectedOpt = (session.currentAnswer as any)?.selected_option ??
                           (session.currentAnswer as any)?.selected_boolean ??
                           (session.currentAnswer as any)?.tap_coordinate;
@@ -542,7 +527,6 @@ export function useLearningSession(
         questionId: currentQId,
         questionIndex: currentIndex,
         userAnswerPayload: session.currentAnswer,
-        powerUpsActive,
         idempotencyKey: idemKey,
         selectedOption: selectedOpt,
         branchState: currentBranch,
@@ -597,6 +581,14 @@ export function useLearningSession(
         }
       }
 
+      const updatedQuestions = (nextBranch === 'FOLLOW_UP' && resolvedFollowUp)
+        ? [
+            ...session.questions.slice(0, targetQuestionIndex),
+            resolvedFollowUp,
+            ...session.questions.slice(targetQuestionIndex),
+          ].slice(0, 10)
+        : session.questions;
+
       setSession((prev) => ({
         ...prev,
         status: 'ANSWER_SUBMITTED',
@@ -604,6 +596,7 @@ export function useLearningSession(
         pendingIdempotencyKey: null,
         submissionError: null,
         currentEvaluation: serverEval,
+        questions: updatedQuestions,
         history: [...prev.history, newHistoryItem],
         totalXpEarned: newTotalXp,
         correctCount: newCorrectCount,
@@ -680,114 +673,7 @@ export function useLearningSession(
     }
   }, [session, questionService, sessionService]);
 
-  /**
-   * Activates 50/50 power-up for current MCQ question: eliminates exactly 2 incorrect options.
-   * Only usable on primary MCQ questions.
-   */
-  const applyFiftyFifty = useCallback(() => {
-    setSession((prev) => {
-      if (prev.status !== 'IN_PROGRESS') return prev;
-      if (prev.branchState === 'FOLLOW_UP') return prev;
 
-      const currentQ = prev.questions[prev.currentIndex];
-      if (!currentQ || currentQ.type !== 'MCQ') return prev;
-
-      const alreadyUsed = Boolean(prev.fiftyFiftyEliminatedOptions?.[prev.currentIndex]);
-      const check = PowerUpService.canUseFiftyFifty(userStats, currentQ, alreadyUsed);
-      if (!check.canUse) return prev;
-
-      const eliminated = PowerUpService.getEliminatedOptions(currentQ as MCQQuestion);
-      const updatedEliminations = {
-        ...(prev.fiftyFiftyEliminatedOptions || {}),
-        [prev.currentIndex]: eliminated,
-      };
-
-      let nextAnswer = prev.currentAnswer;
-      if (
-        nextAnswer &&
-        nextAnswer.type === 'MCQ' &&
-        eliminated.includes(nextAnswer.selected_option as any)
-      ) {
-        nextAnswer = null;
-      }
-
-      const updatedSession: SessionState = {
-        ...prev,
-        fiftyFiftyEliminatedOptions: updatedEliminations,
-        currentAnswer: nextAnswer,
-      };
-
-      const todayStr = getLocalTodayDateString();
-      storageRepository.saveDailySession({
-        sessionId: prev.sessionId,
-        date: todayStr,
-        status: prev.dailyStatus,
-        questionsCompleted: prev.questionsCompleted,
-        reviewViewed: prev.reviewViewed,
-        currentIndex: prev.currentIndex,
-        questions: prev.questions,
-        history: prev.history,
-        score: prev.correctCount,
-        totalQuestions: prev.questions.length,
-        totalXpEarned: prev.totalXpEarned,
-        correctCount: prev.correctCount,
-        branchState: prev.branchState,
-        fiftyFiftyEliminatedOptions: updatedEliminations,
-        learnClueRevealed: prev.learnClueRevealed,
-      });
-
-      return updatedSession;
-    });
-  }, [userStats, storageRepository]);
-
-  /**
-   * Activates LEARN power-up for current question: reveals clinical learning objective.
-   * Only usable on primary questions.
-   */
-  const applyLearn = useCallback(() => {
-    setSession((prev) => {
-      if (prev.status !== 'IN_PROGRESS') return prev;
-      if (prev.branchState === 'FOLLOW_UP') return prev;
-
-      const currentQ = prev.questions[prev.currentIndex];
-      if (!currentQ) return prev;
-
-      const alreadyUsed = Boolean(prev.learnClueRevealed?.[prev.currentIndex]);
-      const check = PowerUpService.canUseLearn(userStats, currentQ, alreadyUsed);
-      if (!check.canUse) return prev;
-
-      const updatedRevealed = {
-        ...(prev.learnClueRevealed || {}),
-        [prev.currentIndex]: true,
-      };
-
-      const updatedSession: SessionState = {
-        ...prev,
-        learnClueRevealed: updatedRevealed,
-      };
-
-      const todayStr = getLocalTodayDateString();
-      storageRepository.saveDailySession({
-        sessionId: prev.sessionId,
-        date: todayStr,
-        status: prev.dailyStatus,
-        questionsCompleted: prev.questionsCompleted,
-        reviewViewed: prev.reviewViewed,
-        currentIndex: prev.currentIndex,
-        questions: prev.questions,
-        history: prev.history,
-        score: prev.correctCount,
-        totalQuestions: prev.questions.length,
-        totalXpEarned: prev.totalXpEarned,
-        correctCount: prev.correctCount,
-        branchState: prev.branchState,
-        fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
-        learnClueRevealed: updatedRevealed,
-      });
-
-      return updatedSession;
-    });
-  }, [userStats, storageRepository]);
 
   /**
    * Advances to the next question or completes the session.
@@ -826,8 +712,6 @@ export function useLearningSession(
         totalQuestions: session.questions.length,
         totalXpEarned: finalXp,
         correctCount: session.correctCount,
-        fiftyFiftyEliminatedOptions: session.fiftyFiftyEliminatedOptions,
-        learnClueRevealed: session.learnClueRevealed,
       };
 
       const storedRecord: StoredSessionRecord = {
@@ -886,8 +770,6 @@ export function useLearningSession(
       totalXpEarned: session.totalXpEarned,
       correctCount: session.correctCount,
       branchState: nextBranch,
-      fiftyFiftyEliminatedOptions: session.fiftyFiftyEliminatedOptions,
-      learnClueRevealed: session.learnClueRevealed,
     };
 
     storageRepository.saveDailySession(progressDaily);
@@ -932,8 +814,6 @@ export function useLearningSession(
         totalQuestions: prev.questions.length,
         totalXpEarned: prev.totalXpEarned,
         correctCount: prev.correctCount,
-        fiftyFiftyEliminatedOptions: prev.fiftyFiftyEliminatedOptions,
-        learnClueRevealed: prev.learnClueRevealed,
       };
 
       storageRepository.saveDailySession(finishedDaily);
@@ -993,8 +873,6 @@ export function useLearningSession(
       serverPendingTransition: null,
       startTime: null,
       endTime: null,
-      fiftyFiftyEliminatedOptions: {},
-      learnClueRevealed: {},
     });
     setUserStats({
       totalXp: 0,
@@ -1004,7 +882,6 @@ export function useLearningSession(
       completedQuestionsCount: 0,
       completedSessionsCount: 0,
       totalCorrectAnswersCount: 0,
-      streakShieldConsumed: false,
     });
   }, []);
 
@@ -1017,8 +894,6 @@ export function useLearningSession(
     initDailySession,
     setAnswer,
     submitCurrentAnswer,
-    applyFiftyFifty,
-    applyLearn,
     nextQuestion,
     markReviewViewed,
     refreshUserStats,

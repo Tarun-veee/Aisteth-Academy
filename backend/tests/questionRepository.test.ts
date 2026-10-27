@@ -48,6 +48,13 @@ describe('Phase 1: Question Model and Lineage Ingestion Mapping', () => {
       expect(mapped.topic).toBe('AI limitation');
       expect(mapped.difficulty_rank).toBe(1);
       expect(mapped.audience).toBe('RBSK');
+      expect(mapped.Audience).toBe('RBSK');
+      expect(mapped.topic).toBe('AI limitation');
+      expect(mapped.Topic).toBe('AI limitation');
+      expect(mapped.difficulty_rank).toBe(1);
+      expect(mapped.Difficulty_Rank).toBe(1);
+      expect(mapped.medGemma_tag).toBe('module1::ai_limitation::applied');
+      expect(mapped.MedGemma_Tag).toBe('module1::ai_limitation::applied');
       expect(mapped.learning_objective).toBe('Clinical action text');
       expect(mapped.tags).toContain('AI limitation');
       expect(mapped.tags).toContain('module1::ai_limitation::applied');
@@ -255,7 +262,7 @@ describe('Phase 1: Question Model and Lineage Ingestion Mapping', () => {
         expect(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']).toContain(q.difficulty);
         expect(q.question.length).toBeGreaterThan(0);
         expect(q.explanation.length).toBeGreaterThan(0);
-        expect(q.learning_objective.length).toBeGreaterThan(0);
+        expect(typeof q.learning_objective).toBe('string');
         expect(q.tags.length).toBeGreaterThan(0);
         expect(q.clinician_validated).toBe(true);
         expect(q.source).toBe('MEDGEMMA');

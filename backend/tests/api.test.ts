@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { app } from '../src/app.js';
 import { AnswerEvaluator } from '../src/domain/rules/AnswerEvaluator.js';
-import { PowerUpService } from '../src/domain/rules/PowerUpService.js';
 import { ProgressionService } from '../src/domain/rules/ProgressionService.js';
 import { selectSessionQuestions, computeDayParity } from '../src/domain/rules/sessionSelection.js';
 import { MCQQuestion } from '../src/domain/models/question.model.js';
@@ -100,22 +99,6 @@ describe('Backend API & Domain Layer Verification Suite', () => {
       });
       expect(incorrectResult.is_correct).toBe(false);
       expect(incorrectResult.awarded_xp).toBe(0);
-    });
-
-    it('calculates power-up unlocks correctly', () => {
-      const unlockedInventory = PowerUpService.calculateInventory({
-        totalXp: 100,
-        currentStreak: 30,
-        completedQuestionsCount: 120,
-        completedSessionsCount: 12,
-        totalCorrectAnswersCount: 100,
-        lastActiveDate: null
-      });
-
-      expect(unlockedInventory.items.find((i) => i.id === 'FIFTY_FIFTY')?.isUnlocked).toBe(true);
-      expect(unlockedInventory.items.find((i) => i.id === 'LEARN')?.isUnlocked).toBe(true);
-      expect(unlockedInventory.streakShield.isUnlocked).toBe(true);
-      expect(unlockedInventory.totalUnlockedCount).toBe(3);
     });
 
     it('calculates XP progression curves deterministically', () => {

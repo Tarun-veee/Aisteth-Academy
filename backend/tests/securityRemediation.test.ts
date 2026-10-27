@@ -75,8 +75,6 @@ describe('Security & Data-Integrity Remediation Suite (F-01, F-02, F-03)', () =>
       await authUseCase.updateProfile('trainee_target_456', {
         displayName: '  Sister Anita Deshmukh  ',
         designation: '  Senior Staff Nurse  ',
-        district: '  Amravati Rural  ',
-        state: '  Maharashtra  ',
         healthSubCentre: '  Subcentre North  ',
         optionalEmail: '  anita.work@hospital.org  ',
       });
@@ -84,8 +82,6 @@ describe('Security & Data-Integrity Remediation Suite (F-01, F-02, F-03)', () =>
       expect(mockUserRepo.updateUserProfile).toHaveBeenCalledWith('trainee_target_456', {
         displayName: 'Sister Anita Deshmukh',
         designation: 'Senior Staff Nurse',
-        district: 'Amravati Rural',
-        state: 'Maharashtra',
         healthSubCentre: 'Subcentre North',
         optionalEmail: 'anita.work@hospital.org',
       });
@@ -352,7 +348,9 @@ describe('Security & Data-Integrity Remediation Suite (F-01, F-02, F-03)', () =>
       };
 
       const mockUserData = {
+        lastActiveDate: '2026-10-08',
         learningState: {
+          lastActiveDate: '2026-10-08',
           totalXp: 100,
           currentStreak: 5,
           longestStreak: 10,
@@ -962,7 +960,6 @@ describe('Security & Data-Integrity Remediation Suite (F-01, F-02, F-03)', () =>
           questionId: 'q0',
           questionIndex: 0,
           userAnswerPayload: { selected_option: 'option_a' },
-          powerUpsActive: ['FIFTY_FIFTY'],
           isSessionComplete: true, // Should be stripped
           hackerField: 'malicious', // Should be stripped
           forgedXp: 99999, // Should be stripped
@@ -982,7 +979,6 @@ describe('Security & Data-Integrity Remediation Suite (F-01, F-02, F-03)', () =>
         questionId: 'q0',
         questionIndex: 0,
         userAnswerPayload: { selected_option: 'option_a' },
-        powerUpsActive: ['FIFTY_FIFTY'],
       });
 
       const passedPayload = recordAttemptSpy.mock.calls[0][1] as any;

@@ -11,7 +11,6 @@ export interface RecordAttemptRequestDTO {
   questionId: string;
   questionIndex: number;
   userAnswerPayload: UserAnswerPayload;
-  powerUpsActive?: string[];
   idempotencyKey?: string;
   selectedOption?: any;
   branchState?: import('../../domain/models/session.model.js').BranchState;

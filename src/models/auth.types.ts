@@ -20,8 +20,8 @@ export interface SignUpPayload {
   name: string;
   role: 'ASHA_WORKER' | 'ANGANWADI_WORKER' | 'HEALTH_VOLUNTEER';
   healthSubCentre: string;
-  district: string;
-  state: string;
+  district?: string; // Optional legacy parameter
+  state?: string;    // Optional legacy parameter
   identifier: string; // email or phone
   password: string;
 }
@@ -30,4 +30,5 @@ export interface AuthResult {
   success: boolean;
   error?: string;
   profile?: UserProfile;
+  requiresLogin?: boolean;
 }

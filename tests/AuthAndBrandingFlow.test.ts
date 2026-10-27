@@ -103,39 +103,22 @@ describe('Auth and Branding Flow', () => {
       expect(html).toContain('Anganwadi Worker');
       expect(html).toContain('Health Volunteer');
       expect(html).toContain('Health Centre / Sub-Centre');
-      expect(html).toContain('State');
-      expect(html).toContain('District');
       expect(html).toContain('Email or Phone Number');
       expect(html).toContain('Confirm Password');
       expect(html).toContain('CREATE ACCOUNT');
       expect(html).toContain('Sign in');
     });
 
-    it('renders State dropdown with all Indian states and UTs', () => {
+    it('does not render State and District dropdowns in SignUpScreen', () => {
       const html = renderToString(
         React.createElement(SignUpScreen, {
           onSuccess: () => {},
           onNavigateSignIn: () => {},
         })
       );
-      expect(html).toContain('Select state');
-      expect(html).toContain('Karnataka');
-      expect(html).toContain('Maharashtra');
-      expect(html).toContain('Bihar');
-      expect(html).toContain('Uttar Pradesh');
-      expect(html).toContain('Tamil Nadu');
-      expect(html).toContain('Delhi');
-    });
-
-    it('renders District dropdown initially disabled before state selection', () => {
-      const html = renderToString(
-        React.createElement(SignUpScreen, {
-          onSuccess: () => {},
-          onNavigateSignIn: () => {},
-        })
-      );
-      expect(html).toContain('Select state first');
-      expect(html).toContain('disabled=""');
+      expect(html).not.toContain('Select state');
+      expect(html).not.toContain('Select district');
+      expect(html).toContain('Health Centre / Sub-Centre');
     });
   });
 
@@ -245,20 +228,16 @@ describe('Auth and Branding Flow', () => {
       expect(result.error).toBeDefined();
     });
 
-    it('successfully signs up with selected State and District and stores profile', async () => {
+    it('successfully signs up and stores profile with healthSubCentre location', async () => {
       const result = await authService.signUp({
         name: 'Sunita Devi',
         role: 'ASHA_WORKER',
         healthSubCentre: 'Kalyanpur Sub-Centre',
-        district: 'Patna',
-        state: 'Bihar',
         identifier: '9876543210',
         password: 'securePassword123',
       });
       expect(result.success).toBe(true);
       expect(result.profile?.name).toBe('Sunita Devi');
-      expect(result.profile?.state).toBe('Bihar');
-      expect(result.profile?.district).toBe('Patna');
       expect(result.profile?.healthSubCentre).toBe('Kalyanpur Sub-Centre');
       expect(authService.isAuthenticated()).toBe(true);
     });

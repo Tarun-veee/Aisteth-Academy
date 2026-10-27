@@ -18,8 +18,7 @@ describe('Header 4-Action Navigation & Redundancy Removal', () => {
     expect(html).toContain('320');
   });
 
-  it('renders ONLY 4 functional actions: Streak, Learning Points, Power-Ups, and Profile', () => {
-    let powerUpsNavClicked = false;
+  it('renders ONLY 3 functional actions: Streak, Learning Points, and Profile', () => {
     let profileNavClicked = false;
 
     const html = renderToString(
@@ -27,37 +26,20 @@ describe('Header 4-Action Navigation & Redundancy Removal', () => {
         title: 'AiSteth Academy',
         streakCount: 20,
         xpCount: 650,
-        unlockedPowerUpsCount: 2,
-        onNavigatePowerUps: () => { powerUpsNavClicked = true; },
         onNavigateProfile: () => { profileNavClicked = true; },
       })
     );
 
-    // Power-Up and Profile buttons render with accessible labels
-    expect(html).toContain('aria-label="Power-Ups"');
+    // Profile button renders with accessible label
     expect(html).toContain('aria-label="My Profile"');
-    expect(html).toContain('2'); // Badge count for power-ups
+
+    // Verify Power-Ups button is COMPLETELY REMOVED
+    expect(html).not.toContain('aria-label="Power-Ups"');
 
     // Verify third button (Level/Award/Bookmark) is COMPLETELY REMOVED
     expect(html).not.toContain('Current level');
     expect(html).not.toContain('aria-label="Current level');
     expect(html).not.toContain('Bookmark');
-  });
-
-  it('triggers onNavigatePowerUps callback specifically for Power-Ups button', () => {
-    let powerUpsNavClicked = false;
-
-    const el = React.createElement(Header, {
-      title: 'AiSteth Academy',
-      streakCount: 20,
-      xpCount: 650,
-      unlockedPowerUpsCount: 2,
-      onNavigatePowerUps: () => { powerUpsNavClicked = true; },
-    });
-
-    expect(el.props.onNavigatePowerUps).toBeDefined();
-    el.props.onNavigatePowerUps!();
-    expect(powerUpsNavClicked).toBe(true);
   });
 
   it('triggers onNavigateProfile callback specifically for Profile button', () => {

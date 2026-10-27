@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthUseCase } from '../../application/usecases/AuthUseCase.js';
+import { AuthUseCase, RegistrationAuthenticationError } from '../../application/usecases/AuthUseCase.js';
 import { defaultUserRepository } from '../../infrastructure/firestore/FirestoreUserRepository.js';
 import { defaultAuthProvider } from '../../infrastructure/auth/FirebaseAuthAdapter.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
@@ -22,9 +22,22 @@ export class AuthController {
       const result = await authUseCase.register(req.body);
       const { refreshToken, ...responsePayload } = result;
 
-      res.cookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
+      if (refreshToken) {
+        res.cookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
+      }
       res.status(201).json(responsePayload);
-    } catch (err) {
+    } catch (err: any) {
+      if (err instanceof RegistrationAuthenticationError) {
+        res.status(201).json({
+          success: false,
+          error: err.message,
+          code: err.code,
+          requiresLogin: true,
+          profile: err.profile,
+          stats: err.stats,
+        });
+        return;
+      }
       next(err);
     }
   }

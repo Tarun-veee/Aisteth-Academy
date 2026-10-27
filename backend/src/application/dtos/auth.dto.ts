@@ -6,10 +6,12 @@ export interface RegisterRequestDTO {
   password: string;
   displayName: string;
   designation: string;
-  district: string;
-  state: string;
   healthSubCentre?: string;
+  district?: string; // Optional legacy parameter
+  state?: string;    // Optional legacy parameter
   optionalEmail?: string;
+  phoneNumber?: string;
+  onboardingStatus?: string;
 }
 
 export interface LoginRequestDTO {
@@ -19,10 +21,12 @@ export interface LoginRequestDTO {
 
 export interface AuthResponseDTO {
   success: boolean;
-  token: string;
+  token?: string;
   profile: UserProfile;
   stats: UserStats;
   message?: string;
+  code?: string;
+  requiresLogin?: boolean;
 }
 
 export interface RefreshResponseDTO {
@@ -34,8 +38,6 @@ export interface RefreshResponseDTO {
 export interface UpdateProfileRequestDTO {
   displayName?: string;
   designation?: string;
-  district?: string;
-  state?: string;
   healthSubCentre?: string;
   optionalEmail?: string;
 }

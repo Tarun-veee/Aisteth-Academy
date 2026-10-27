@@ -3,7 +3,6 @@ import { Eye, EyeOff, Lock, User, Building2, Mail, AlertCircle, Loader2 } from '
 import { Button } from '../components/common/Button';
 import { AuthService, defaultAuthService } from '../services/AuthService';
 import { UserProfile } from '../models/user.types';
-import { INDIAN_STATES_AND_UTS, getDistrictsForState } from '../data/indiaLocations';
 
 export interface SignUpScreenProps {
   authService?: AuthService;
@@ -19,8 +18,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
   const [name, setName] = useState('');
   const [role, setRole] = useState<'ASHA_WORKER' | 'ANGANWADI_WORKER' | 'HEALTH_VOLUNTEER'>('ASHA_WORKER');
   const [healthSubCentre, setHealthSubCentre] = useState('');
-  const [state, setState] = useState('');
-  const [district, setDistrict] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,14 +26,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Get available districts based on selected state
-  const availableDistricts = getDistrictsForState(state);
-
   // Field validations
   const isNameValid = name.trim().length >= 2;
   const isCentreValid = healthSubCentre.trim().length >= 2;
-  const isStateValid = state.trim().length > 0;
-  const isDistrictValid = district.trim().length > 0;
   const isIdentifierValid = AuthService.isValidIdentifier(identifier);
   const isPasswordValid = password.length >= 6;
   const isConfirmPasswordMatch = password.length > 0 && password === confirmPassword;
@@ -44,19 +36,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
   const isFormValid =
     isNameValid &&
     isCentreValid &&
-    isStateValid &&
-    isDistrictValid &&
     isIdentifierValid &&
     isPasswordValid &&
     isConfirmPasswordMatch;
-
-  // Handle State selection change and reset dependent District
-  const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedState = e.target.value;
-    setState(selectedState);
-    setDistrict(''); // Reset district when state changes
-    if (errorMessage) setErrorMessage(null);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,8 +52,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
         name: name.trim(),
         role: role,
         healthSubCentre: healthSubCentre.trim(),
-        district: district.trim(),
-        state: state.trim(),
         identifier: identifier.trim(),
         password: password,
       });
@@ -202,72 +182,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
             </div>
           </div>
 
-          {/* State & District Dependent Dropdowns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {/* State Selection */}
-            <div>
-              <label
-                htmlFor="signup-state"
-                className="block text-xs font-bold text-content-primary mb-1"
-              >
-                State <span className="text-rose-500">*</span>
-              </label>
-              <div className="relative flex items-center">
-                <select
-                  id="signup-state"
-                  value={state}
-                  onChange={handleStateChange}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-content-primary font-medium focus:outline-hidden focus:ring-2 focus:ring-brand-500 cursor-pointer min-h-[44px]"
-                  aria-required="true"
-                  disabled={isLoading}
-                >
-                  <option value="">Select state</option>
-                  {INDIAN_STATES_AND_UTS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
-            {/* District Selection (Dependent on State) */}
-            <div>
-              <label
-                htmlFor="signup-district"
-                className="block text-xs font-bold text-content-primary mb-1"
-              >
-                District <span className="text-rose-500">*</span>
-              </label>
-              <div className="relative flex items-center">
-                <select
-                  id="signup-district"
-                  value={district}
-                  onChange={(e) => {
-                    setDistrict(e.target.value);
-                    if (errorMessage) setErrorMessage(null);
-                  }}
-                  disabled={!state || availableDistricts.length === 0 || isLoading}
-                  className={`w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-brand-500 min-h-[44px] ${
-                    !state
-                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200'
-                      : 'bg-white text-content-primary cursor-pointer'
-                  }`}
-                  aria-required="true"
-                  aria-disabled={!state || availableDistricts.length === 0 || isLoading}
-                >
-                  <option value="">
-                    {state ? 'Select district' : 'Select state first'}
-                  </option>
-                  {availableDistricts.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
 
           {/* Email / Phone */}
           <div>

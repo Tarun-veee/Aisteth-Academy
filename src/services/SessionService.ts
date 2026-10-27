@@ -34,10 +34,6 @@ export interface DailySessionDoc {
   totalXpEarned: number;
   correctCount: number;
   accuracy: number;
-  powerUpsUsed: {
-    FIFTY_FIFTY: string[];
-    LEARN: string[];
-  };
   branchState?: BranchState;
   activeMainQuestionId?: string;
   activeFollowUpQuestionId?: string | null;
@@ -59,7 +55,6 @@ export interface AttemptDoc {
   userAnswerPayload: Record<string, any>;
   result: 'CORRECT' | 'INCORRECT';
   xpAwarded: number;
-  powerUpsActive: string[];
   clientTimestamp: number;
   createdAt?: any;
   serverTimestamp?: any;
@@ -102,10 +97,6 @@ export class SessionService {
       totalXpEarned: 0,
       correctCount: 0,
       accuracy: 0,
-      powerUpsUsed: {
-        FIFTY_FIFTY: [],
-        LEARN: [],
-      },
       branchState: 'MAIN',
       startedAt: new Date(),
       createdAt: new Date(),
@@ -127,7 +118,6 @@ export class SessionService {
       questionId: string;
       questionIndex: number;
       userAnswerPayload: Record<string, any>;
-      powerUpsActive?: string[];
       idempotencyKey?: string;
       selectedOption?: any;
       branchState?: BranchState;
@@ -141,7 +131,6 @@ export class SessionService {
       questionId: payload.questionId,
       questionIndex: payload.questionIndex,
       userAnswerPayload: payload.userAnswerPayload as any,
-      powerUpsActive: payload.powerUpsActive,
       idempotencyKey: payload.idempotencyKey,
       selectedOption: payload.selectedOption,
       branchState: payload.branchState,

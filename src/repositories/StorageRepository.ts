@@ -3,7 +3,16 @@ import { StoredSessionRecord, UserStats, DailySessionData } from '../models/sess
 import { UserProfile, DEFAULT_USER_STATS, DEFAULT_USER_PROFILE } from '../models/user.types';
 import { CompetencyProgress, CoreCompetencyArea, CORE_COMPETENCIES } from '../models/progression.types';
 
-export function getLocalTodayDateString(): string {
+export const DAILY_CYCLE_RESET_HOUR_IST = 9; // 09:00:00 IST
+
+/**
+ * Computes the authoritative daily cycle date in Asia/Kolkata timezone.
+ *
+ * Daily learning cycle boundary: exactly 09:00:00 IST (UTC+05:30).
+ * - Prior to 09:00:00 IST, the previous calendar date's cycle remains active.
+ * - At or after 09:00:00 IST, the current calendar date's cycle is active.
+ */
+export function getDailyCycleDate(date: Date = new Date()): string {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const dateParam = params.get('date') || params.get('sessionDate');
@@ -11,11 +20,18 @@ export function getLocalTodayDateString(): string {
       return dateParam;
     }
   }
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const shifted = new Date(date.getTime() - DAILY_CYCLE_RESET_HOUR_IST * 60 * 60 * 1000);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(shifted);
+}
+
+export function getLocalTodayDateString(): string {
+  return getDailyCycleDate();
 }
 
 const DB_NAME = 'aisteth_academy_db';
@@ -97,12 +113,10 @@ export class StorageRepository {
     const todayStr = getLocalTodayDateString();
     const streakResult = this.computeStreak(
       currentStats.lastActiveDate,
-      currentStats.currentStreak,
-      currentStats.streakShieldConsumed || false
+      currentStats.currentStreak
     );
 
     const newStreak = streakResult.newStreak;
-    const shieldConsumed = currentStats.streakShieldConsumed || streakResult.shieldWasConsumed;
     const longestStreak = Math.max(currentStats.longestStreak || 0, newStreak);
 
     const updatedStats: UserStats = {
@@ -113,7 +127,6 @@ export class StorageRepository {
       completedQuestionsCount: (currentStats.completedQuestionsCount || 0) + session.totalQuestions,
       completedSessionsCount: (currentStats.completedSessionsCount || 0) + 1,
       totalCorrectAnswersCount: (currentStats.totalCorrectAnswersCount || 0) + (session.correctCount || 0),
-      streakShieldConsumed: shieldConsumed,
     };
 
     await this.saveUserStats(updatedStats);
@@ -291,14 +304,13 @@ export class StorageRepository {
   }
 
   /**
-   * Helper: Computes updated daily streak count based on last active calendar date and Streak Shield protection.
+   * Helper: Computes updated daily streak count based on last active calendar date.
    */
   computeStreak(
     lastActiveDateStr: string | null,
-    currentStreak: number,
-    shieldConsumed: boolean = false
-  ): { newStreak: number; shieldWasConsumed: boolean } {
-    if (!lastActiveDateStr) return { newStreak: 1, shieldWasConsumed: false };
+    currentStreak: number
+  ): { newStreak: number } {
+    if (!lastActiveDateStr) return { newStreak: 1 };
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -310,20 +322,13 @@ export class StorageRepository {
 
     if (diffDays === 0) {
       // Already active today, maintain streak
-      return { newStreak: Math.max(1, currentStreak), shieldWasConsumed: false };
+      return { newStreak: Math.max(1, currentStreak) };
     } else if (diffDays === 1) {
       // Consecutive day activity, increment streak
-      return { newStreak: currentStreak + 1, shieldWasConsumed: false };
-    } else if (diffDays === 2) {
-      // Missed 1 calendar day: check if Streak Shield is unlocked (currentStreak >= 30) and unconsumed
-      if (currentStreak >= 30 && !shieldConsumed) {
-        // Shield automatically protects the streak!
-        return { newStreak: currentStreak + 1, shieldWasConsumed: true };
-      }
-      return { newStreak: 1, shieldWasConsumed: false };
+      return { newStreak: currentStreak + 1 };
     } else {
-      // Missed 2 or more days, reset to 1
-      return { newStreak: 1, shieldWasConsumed: false };
+      // Missed 1 or more days, reset to 1
+      return { newStreak: 1 };
     }
   }
 
